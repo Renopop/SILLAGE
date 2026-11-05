@@ -127,6 +127,8 @@ SCENARIO = textwrap.dedent('''
         def close(self): pass
     fiches_mod.ouvrir_synthesizer = lambda log=None: FauxSynth()
     messagebox.askyesno = lambda *a, **k: True
+    app.lire_ncm()                      # le profil enregistré impose une relecture de la NCM
+    attendre(lambda: app.ncm is not None and not app.en_cours)
     app.rediger_fiches()
     attendre(lambda: app.fiches is not None and not app.en_cours)
     assert sorted(app.fiches.fiches) == ["REQ-2", "REQ-4"], list(app.fiches.fiches)

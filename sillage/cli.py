@@ -5,6 +5,7 @@
     sillage diff   --avant NCM_A --apres NCM_B [--sortie diff.xlsx]
     sillage statuts [--ajouter "valeur=C"]
     sillage profils [--proposer NCM --fournisseur F]
+    sillage gui
     sillage version
 """
 
@@ -239,6 +240,11 @@ def cmd_profils(a) -> int:
     return 0
 
 
+def cmd_gui(a) -> int:
+    from .gui import main as gui
+    return gui()
+
+
 def construire_parseur() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="sillage", description="SILLAGE — Spécifications, Incomplétudes, Livrables : "
                                 "Lecture, Analyse et Grille des Écarts")
@@ -319,6 +325,9 @@ def construire_parseur() -> argparse.ArgumentParser:
     q.add_argument("--spec", help="référentiel, pour le motif d'identifiant")
     q.add_argument("--enregistrer", action="store_true", help="enregistrer le profil proposé")
     q.set_defaults(fonction=cmd_profils)
+
+    q = sp.add_parser("gui", help="interface graphique")
+    q.set_defaults(fonction=cmd_gui)
 
     q = sp.add_parser("version")
     q.set_defaults(fonction=lambda a: (print(VERSION_LABEL), 0)[1])

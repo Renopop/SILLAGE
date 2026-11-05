@@ -39,7 +39,22 @@ Le moteur embarqué est une copie de RIVAGE (version et commit dans
 `sillage/moteur/VERSION_RIVAGE.txt`). Pour reprendre une version plus
 récente : `python outils/synchroniser_rivage.py chemin\vers\RIVAGE`.
 
-## Utilisation
+## Interface graphique
+
+`launch.bat` (ou `python sillage_app.py`) ouvre l'interface : un projet
+(spécification, fournisseur, NCM, dossier des documents du fournisseur),
+cinq étapes (lire la NCM, grille des écarts, indexer les documents,
+vérifier les « C », affaiblissements), la comparaison avec une révision
+antérieure, la grille à l'écran colorée par statut avec filtres et volet de
+détail, les onglets diagnostic / résumé / journal, et les exports Excel.
+Les valeurs de statut inconnues du dictionnaire sont proposées à
+l'enrichissement dès la lecture ; le profil des colonnes d'un fournisseur se
+confirme une fois et se mémorise.
+
+Exécutable autonome (aucun Python sur le poste) : `build_exe.bat` produit
+`dist\SILLAGE\SILLAGE.exe`, à copier tel quel avec `RIVAGE_keys.env` à côté.
+
+## Ligne de commande
 
 ```bat
 :: lire une NCM et mesurer son exploitabilité

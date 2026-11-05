@@ -59,7 +59,7 @@ nous : les identifiants sont l'invariant, tout le reste s'y rattache.
 | 4 | Traçabilité vers la norme : pré-remplissage par RIVAGE (exigence → paragraphe), relecture, figement ; liste des NC à impact certification par jointure | non (scores) | à faire |
 | 5 | Fiches de revue pour les NC et PC : exigence, ligne de NCM, passages, résumé de l'écart et du risque — seule étape générative, verdict laissé à l'ingénieur | oui, bornée | à faire |
 | 3 ter | Moteur de RIVAGE embarqué (copie, synchronisation, sonde) : SILLAGE autonome | non | fait (0.3.0) |
-| 6 | Interface graphique propre à SILLAGE (Tkinter) : projet (spécification, fournisseur, NCM, documents), lecture et diagnostic, confirmation de profil, enrichissement des statuts, indexation, vérification, affaiblissements, diff, grille à l'écran filtrable avec volet de détail, exports ; puis `launch.bat`, `install.bat`, `build_exe.bat`, `SILLAGE.spec` | non | à faire (0.4.0) |
+| 6 | Interface graphique propre à SILLAGE (Tkinter) : projet (spécification, fournisseur, NCM, documents), lecture et diagnostic, confirmation de profil, enrichissement des statuts, indexation, vérification, affaiblissements, diff, grille à l'écran filtrable avec volet de détail, exports ; `sillage_app.py`, `launch.bat`, `install.bat`, `build_exe.bat`, `SILLAGE.spec` | non | fait (0.4.0) |
 | 7 | Capitalisation : une base par projet, questions transverses entre projets (exigences souvent contestées, écarts déjà acceptés) | non | à faire |
 
 Les lots 1 et 2 forment déjà un outil utile et entièrement déterministe ;

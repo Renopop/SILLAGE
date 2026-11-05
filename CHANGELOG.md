@@ -2,6 +2,29 @@
 
 Numérotation MAJEUR.MINEUR.CORRECTIF ; version dans `sillage/version.py`.
 
+## 0.4.0 — 2026-11-05 (interface graphique autonome, lanceur, scripts, spec)
+
+- `sillage/gui.py` (Tkinter) : projet (spécification, fournisseur, NCM et
+  révision, documents du fournisseur, index), étapes 1 à 5 (lire la NCM,
+  grille, indexer, vérifier les « C », affaiblissements), outils (profil
+  des colonnes, dictionnaire des statuts, comparaison avec une révision
+  antérieure), grille à l'écran colorée par statut avec filtres (statut,
+  alerte, recherche) et volet de détail (exigence, ligne de NCM, clôture,
+  origine, appui et passage, valeurs absentes, affaiblissements, alertes),
+  onglets diagnostic / résumé / journal, exports Excel (grille, diff),
+  NCM normalisée et campagne d'appuis en JSON, fiche « ce poste », menus.
+  Les valeurs de statut inconnues sont proposées à l'enrichissement dès la
+  lecture, puis la NCM est relue. Travaux dans un fil, file relevée toutes
+  les 100 ms, réglages mémorisés (`gui.json` du dossier de données).
+- `sillage_app.py` : lanceur script / exécutable (sonde fils,
+  `freeze_support`, flux absents en exécutable fenêtré, interface sans
+  argument, ligne de commande sinon) ; `sillage gui` en ligne de commande.
+- `install.bat`, `launch.bat`, `build_exe.bat`, `SILLAGE.spec` (ONEDIR,
+  moteur embarqué, hook de la sonde), `RIVAGE.env.example` et
+  `RIVAGE_keys.env.example` repris de RIVAGE (mêmes clés, mêmes options).
+- Test de l'interface sous Xvfb (lecture, grille, filtres, détail, export,
+  diff, affaiblissements, profil).
+
 ## 0.3.0 — 2026-11-05 (moteur de RIVAGE embarqué : SILLAGE autonome)
 
 - `sillage/moteur/` : copie embarquée des 23 modules de RIVAGE 2.7.6

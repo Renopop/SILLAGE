@@ -1,0 +1,18 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+build/
+dist/
+*.egg-info/
+.claude/
+# données fournisseurs et sorties : jamais dans le dépôt
+*.xlsx
+*.xlsm
+*.docx
+*.pdf
+!docs/*.docx
+!docs/*.pdf
+!docs/*.pptx
+*_grille.xlsx

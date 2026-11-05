@@ -7,6 +7,7 @@
     sillage profils [--proposer NCM --fournisseur F]
     sillage tracer --spec SPEC --index INDEX_NORME [--json t.json] [--xlsx t.xlsx]
     sillage fiches --spec SPEC --ncm NCM [--appuis a.json] [--json f.json] [--docx f.docx]
+    sillage memoire campagnes|contestees|acceptes|norme|fournisseurs|chercher TEXTE|exporter --sortie X
     sillage couverture --spec SPEC [--tracabilite T] [--norme-documents F...]
     sillage gui
     sillage version
@@ -120,6 +121,18 @@ def cmd_grille(a) -> int:
     if fiches is not None:
         print(fiches.texte_resume())
     g = controler(ref, ncm, campagne=campagne, releve=releve, tracabilite=trac, fiches=fiches)
+    if getattr(a, "memoire", False) or getattr(a, "capitaliser", False):
+        from .memoire import Memoire
+        with Memoire(getattr(a, "memoire_fichier", None)) as mem:
+            if a.capitaliser:
+                if not a.projet:
+                    print("--projet est requis pour capitaliser", file=sys.stderr)
+                    return 2
+                mem.enregistrer(g, a.projet, signee=a.signee)
+                print(f"Campagne enregistrée dans la mémoire : projet « {a.projet} », fournisseur « {g.fournisseur or '(sans fournisseur)'} »"
+                      f", révision « {g.revision} »" + (" (NCM signée)" if a.signee else ""))
+            n = mem.annoter(g, projet=a.projet or "")
+            print(f"Historique reporté sur {n} exigence(s) depuis la mémoire ({mem.chemin})")
     print(g.texte_resume())
     couv = _couverture(a, ref)
     if couv is not None:
@@ -176,6 +189,58 @@ def cmd_fiches(a) -> int:
     docx_out = a.docx or (str(Path(a.ncm).with_suffix("")) + "_fiches_revue.docx")
     exporter_fiches(f, ref, ncm, docx_out)
     print(f"Dossier de revue écrit : {docx_out}")
+    return 0
+
+
+def cmd_memoire(a) -> int:
+    from .memoire import Memoire
+    with Memoire(a.fichier) as mem:
+        if a.action == "campagnes":
+            print(f"{VERSION_LABEL} — {mem.texte_resume()}")
+            for c in mem.campagnes():
+                print(f"  {c.projet:<20} {c.fournisseur:<20} rév. {c.revision or '—':<6} {c.date[:16]}  "
+                      f"{c.exigences} exigences, {c.ecarts} écarts" + ("  [signée]" if c.signee else ""))
+        elif a.action == "contestees":
+            rows = mem.exigences_contestees(minimum=a.minimum)
+            print(f"{VERSION_LABEL} — {len(rows)} exigence(s) contestée(s) sur au moins {a.minimum} campagne(s)")
+            for d in rows:
+                print(f"  {d['exigence']:<14} {d['contestations']}/{d['campagnes']} contestée(s), {d['acceptations']} acceptée(s)"
+                      f"  {d['norme']:<12} {d['texte'][:70]}")
+                if a.detail:
+                    print("      " + " ; ".join(d["ou"]))
+        elif a.action == "acceptes":
+            rows = mem.ecarts_acceptes(exigence=a.exigence, norme=a.norme)
+            print(f"{VERSION_LABEL} — {len(rows)} écart(s) accepté(s)")
+            for d in rows:
+                print(f"  {d['exigence']:<14} {d['statut']:<3} {d['projet']} / {d['fournisseur']} rév. {d['revision'] or '—'}"
+                      f"  {d['derogation'] or '(dérogation)'}  {d['justification'][:80]}")
+        elif a.action == "norme":
+            for d in mem.par_norme():
+                print(f"  {d['norme']:<14} {d['exigences']} exigence(s), {d['ecarts']} écart(s), {d['acceptes']} accepté(s), {d['campagnes']} campagne(s)")
+        elif a.action == "fournisseurs":
+            for d in mem.par_fournisseur():
+                print(f"  {d['fournisseur']:<20} {d['campagnes']} campagne(s), {d['projets']} projet(s), conformité {d['taux_conformite']:.0%}, "
+                      f"{d['ecarts']} écart(s), {d['ouverts']} ouvert(s), {d['c_sans_appui']} C sans appui")
+        elif a.action == "chercher":
+            if not a.texte:
+                print("un texte à chercher est requis", file=sys.stderr)
+                return 2
+            rows = mem.chercher(a.texte)
+            print(f"{VERSION_LABEL} — {len(rows)} ligne(s) pour « {a.texte} »")
+            for d in rows:
+                print(f"  {d['exigence']:<14} {d['statut']:<3} {d['projet']} / {d['fournisseur']} : {d['justification'][:90]}")
+        elif a.action == "exporter":
+            if not a.sortie:
+                print("--sortie est requis", file=sys.stderr)
+                return 2
+            p = mem.exporter(a.sortie)
+            print(f"Rapport de capitalisation écrit : {p}")
+        elif a.action == "supprimer":
+            if not (a.projet and a.fournisseur):
+                print("--projet et --fournisseur sont requis", file=sys.stderr)
+                return 2
+            n = mem.supprimer(a.projet, a.fournisseur, a.revision or "")
+            print(f"{n} campagne(s) supprimée(s)")
     return 0
 
 
@@ -404,8 +469,27 @@ def construire_parseur() -> argparse.ArgumentParser:
     q.add_argument("--tracabilite", metavar="FICHIER", help="lot 4 : traçabilité vers la norme (JSON de « tracer », ou classeur relu)")
     q.add_argument("--norme-documents", action="append", metavar="FICHIER", help="lot 4 : documents de la norme, pour la feuille de couverture (répétable)")
     q.add_argument("--fiches", metavar="JSON", help="lot 5 : fiches de revue enregistrées par « fiches --json », reportées dans la grille")
+    q.add_argument("--projet", default="", help="lot 7 : nom du projet (mémoire des campagnes)")
+    q.add_argument("--memoire", action="store_true", help="lot 7 : annoter la grille avec l'historique des autres projets")
+    q.add_argument("--capitaliser", action="store_true", help="lot 7 : enregistrer cette grille dans la mémoire (requiert --projet)")
+    q.add_argument("--signee", action="store_true", help="lot 7 : cette NCM est la NCM finale signée")
+    q.add_argument("--memoire-fichier", metavar="SQLITE", help="lot 7 : fichier de mémoire (défaut : dossier de données)")
     options_rivage(q)
     q.set_defaults(fonction=cmd_grille)
+
+    q = sp.add_parser("memoire", help="lot 7 : mémoire des campagnes (exigences contestées, écarts acceptés, normes, fournisseurs)")
+    q.add_argument("action", choices=["campagnes", "contestees", "acceptes", "norme", "fournisseurs", "chercher", "exporter", "supprimer"])
+    q.add_argument("texte", nargs="?", default="", help="texte à chercher (action « chercher »)")
+    q.add_argument("--fichier", metavar="SQLITE", help="fichier de mémoire (défaut : dossier de données)")
+    q.add_argument("--minimum", type=int, default=1, help="contestees : nombre minimal de campagnes")
+    q.add_argument("--detail", action="store_true", help="contestees : afficher où")
+    q.add_argument("--exigence", help="acceptes : filtrer par identifiant")
+    q.add_argument("--norme", help="acceptes : filtrer par paragraphe de norme")
+    q.add_argument("--sortie", help="exporter : classeur de sortie")
+    q.add_argument("--projet", default="")
+    q.add_argument("--fournisseur", default="")
+    q.add_argument("--revision", default="")
+    q.set_defaults(fonction=cmd_memoire)
 
     q = sp.add_parser("fiches", help="lot 5 : fiches de revue des écarts (NC, PC) rédigées par le modèle — seule étape générative")
     q.add_argument("--ncm", required=True)

@@ -111,7 +111,7 @@ class Application(tk.Tk):
             return {}
 
     def _enregistrer_reglages(self) -> None:
-        d = {"spec": self.v_spec.get(), "fournisseur": self.v_fournisseur.get(), "ncm": self.v_ncm.get(),
+        d = {"spec": self.v_spec.get(), "projet": self.v_projet.get(), "fournisseur": self.v_fournisseur.get(), "ncm": self.v_ncm.get(),
              "documents": self.v_documents.get(), "index": self.v_index.get(),
              "seuil_etaye": self.v_seuil_etaye.get(), "seuil_faible": self.v_seuil_faible.get(),
              "statuts": self.v_statuts.get()}
@@ -144,6 +144,8 @@ class Application(tk.Tk):
         self._construire_menu()
         r = self.reglages
         self.v_spec = tk.StringVar(value=r.get("spec", ""))
+        self.v_projet = tk.StringVar(value=r.get("projet", ""))
+        self.v_signee = tk.BooleanVar(value=False)
         self.v_fournisseur = tk.StringVar(value=r.get("fournisseur", ""))
         self.v_ncm = tk.StringVar(value=r.get("ncm", ""))
         self.v_revision = tk.StringVar(value="")
@@ -172,11 +174,13 @@ class Application(tk.Tk):
             return e
 
         ligne(0, "Spécification (référentiel) :", self.v_spec, self._choisir_spec)
-        ligne(0, "Fournisseur :", self.v_fournisseur, None, colonne=3, largeur=28)
+        ligne(0, "Projet :", self.v_projet, None, colonne=3, largeur=28)
         ligne(1, "NCM :", self.v_ncm, self._choisir_ncm)
-        ligne(1, "Révision :", self.v_revision, None, colonne=3, largeur=28)
+        ligne(1, "Fournisseur :", self.v_fournisseur, None, colonne=3, largeur=28)
         ligne(2, "Documents du fournisseur :", self.v_documents, self._choisir_documents)
-        ligne(2, "Index (moteur) :", self.v_index, self._choisir_index, colonne=3, largeur=28)
+        ligne(2, "Révision :", self.v_revision, None, colonne=3, largeur=28)
+        ligne(3, "Index (moteur) :", self.v_index, self._choisir_index)
+        ttk.Checkbutton(projet, text="NCM finale signée", variable=self.v_signee).grid(row=3, column=3, columnspan=2, sticky="w")
 
         # actions : les étapes sur une rangée, les outils et réglages sur la suivante
         actions = ttk.Frame(self)
@@ -189,6 +193,7 @@ class Application(tk.Tk):
             ("verifier", "4. Vérifier les « C »", self.verifier),
             ("affaiblissements", "5. Affaiblissements", self.affaiblissements),
             ("fiches", "6. Fiches de revue", self.rediger_fiches),
+            ("capitaliser", "7. Capitaliser", self.capitaliser),
             ("exporter", "Exporter la grille…", self.exporter_grille),
         ]:
             b = ttk.Button(actions, text=libelle, command=cmd)
@@ -200,6 +205,7 @@ class Application(tk.Tk):
             ("profil", "Profil des colonnes…", self.confirmer_profil),
             ("statuts", "Dictionnaire des statuts…", lambda: self.dialogue_statuts()),
             ("diff", "Comparer avec une révision antérieure…", self.comparer),
+            ("memoire", "Mémoire des projets…", self.fenetre_memoire),
         ]:
             b = ttk.Button(outils, text=libelle, command=cmd)
             b.pack(side="left", padx=(0, 6))
@@ -476,6 +482,12 @@ class Application(tk.Tk):
         from .controles import controler
         self.grille = controler(self.ref, self.ncm, campagne=self.campagne, releve=self.releve, tracabilite=self.tracabilite,
                                 fiches=self.fiches)
+        try:
+            from .memoire import Memoire
+            with Memoire() as mem:
+                mem.annoter(self.grille, projet=self.v_projet.get().strip())
+        except Exception as exc:   # la mémoire ne doit jamais empêcher la grille
+            logger.warning("mémoire des projets indisponible : %s", exc)
         self._ecrire(self.t_resume, self.grille.texte_resume())
         self._rafraichir_grille()
         self.onglets.select(1)
@@ -640,6 +652,33 @@ class Application(tk.Tk):
         if p:
             self.campagne.enregistrer(p)
             self._journal(f"Campagne d'appuis écrite : {p}")
+
+    # --- lot 7 : mémoire des projets ------------------------------------------------------------------
+    def capitaliser(self):
+        if self.grille is None:
+            messagebox.showwarning("SILLAGE", "Calculez d'abord la grille.")
+            return
+        projet = self.v_projet.get().strip()
+        if not projet:
+            messagebox.showwarning("SILLAGE", "Indiquez le nom du projet pour capitaliser cette campagne.")
+            return
+        from .memoire import Memoire
+        with Memoire() as mem:
+            mem.enregistrer(self.grille, projet, signee=self.v_signee.get())
+            resume = mem.texte_resume()
+        self._enregistrer_reglages()
+        self._journal(f"Campagne enregistrée dans la mémoire : projet « {projet} », fournisseur « {self.grille.fournisseur or '(sans fournisseur)'} », "
+                      f"révision « {self.grille.revision} »" + (" (NCM signée)" if self.v_signee.get() else "") + f". {resume}")
+        self.calculer_grille()
+
+    def fenetre_memoire(self):
+        try:
+            from .memoire import Memoire
+            mem = Memoire()
+        except Exception as exc:
+            messagebox.showerror("SILLAGE", f"Mémoire indisponible : {exc}")
+            return
+        FenetreMemoire(self, mem)
 
     # --- lot 5 : fiches de revue -----------------------------------------------------------------
     def rediger_fiches(self):
@@ -950,6 +989,9 @@ class Application(tk.Tk):
         if lg.fiche or lg.fiche_erreur:
             ins("end", "Fiche de revue (rédigée par le modèle, verdict à vous)\n", "titre")
             ins("end", (lg.fiche or f"non rédigée : {lg.fiche_erreur}") + "\n")
+        if lg.historique:
+            ins("end", "Mémoire des projets\n", "titre")
+            ins("end", lg.historique + "\n", "rouge" if lg.ecart_accepte_avant else "gris")
         if lg.alertes:
             ins("end", "Alertes\n", "titre")
             ins("end", "\n".join(LIBELLES_ALERTES.get(a, a) for a in lg.alertes) + "\n", "rouge")
@@ -1140,6 +1182,88 @@ class FenetreDiff(tk.Toplevel):
             from .grille import exporter_diff
             exporter_diff(self.diff, p)
             messagebox.showinfo("SILLAGE", f"Diff écrit :\n{p}", parent=self)
+
+
+class FenetreMemoire(tk.Toplevel):
+    """La mémoire des projets : campagnes, exigences contestées, écarts acceptés, normes, fournisseurs, recherche."""
+
+    def __init__(self, parent, mem):
+        super().__init__(parent)
+        self.title("Mémoire des projets")
+        self.geometry("1000x560")
+        self.mem = mem
+        ttk.Label(self, text=mem.texte_resume(), padding=8, wraplength=960).pack(anchor="w")
+        self.onglets = ttk.Notebook(self)
+        self.onglets.pack(fill="both", expand=True, padx=8, pady=(0, 4))
+        self._tableau("Campagnes", [("Projet", 160), ("Fournisseur", 160), ("Révision", 70), ("Date", 130), ("Signée", 60),
+                                    ("Exigences", 80), ("Écarts", 60)],
+                      [(c.projet, c.fournisseur, c.revision, c.date[:16], "oui" if c.signee else "non", c.exigences, c.ecarts)
+                       for c in mem.campagnes()])
+        self._tableau("Exigences contestées", [("Identifiant", 110), ("Contestations", 90), ("Campagnes", 80), ("Acceptations", 90),
+                                               ("Norme", 100), ("Exigence", 400)],
+                      [(d["exigence"], d["contestations"], d["campagnes"], d["acceptations"], d["norme"], d["texte"][:160])
+                       for d in mem.exigences_contestees()])
+        self._tableau("Écarts acceptés", [("Identifiant", 110), ("Norme", 100), ("Projet", 140), ("Fournisseur", 140), ("Révision", 60),
+                                          ("Dérogation", 110), ("Justification", 360)],
+                      [(d["exigence"], d["norme"], d["projet"], d["fournisseur"], d["revision"], d["derogation"], d["justification"][:160])
+                       for d in mem.ecarts_acceptes()])
+        self._tableau("Par norme", [("Paragraphe", 120), ("Exigences", 80), ("Écarts", 70), ("Acceptés", 70), ("Campagnes", 80)],
+                      [(d["norme"], d["exigences"], d["ecarts"], d["acceptes"], d["campagnes"]) for d in mem.par_norme()])
+        self._tableau("Par fournisseur", [("Fournisseur", 160), ("Campagnes", 80), ("Projets", 70), ("Exigences", 80), ("Conformité", 80),
+                                          ("Écarts", 60), ("Ouverts", 60), ("C sans appui", 90)],
+                      [(d["fournisseur"], d["campagnes"], d["projets"], d["exigences"], f"{d['taux_conformite']:.0%}", d["ecarts"],
+                        d["ouverts"], d["c_sans_appui"]) for d in mem.par_fournisseur()])
+        # recherche
+        f = ttk.Frame(self.onglets)
+        self.onglets.add(f, text="Recherche")
+        haut = ttk.Frame(f)
+        haut.pack(fill="x", pady=4)
+        self.v_texte = tk.StringVar()
+        ttk.Entry(haut, textvariable=self.v_texte, width=40).pack(side="left", padx=(4, 6))
+        ttk.Button(haut, text="Chercher", command=self._chercher).pack(side="left")
+        self.t_rech = self._arbre(f, [("Identifiant", 110), ("Statut", 60), ("Projet", 140), ("Fournisseur", 140), ("Justification", 480)])
+        bas = ttk.Frame(self)
+        bas.pack(fill="x", padx=8, pady=(0, 8))
+        ttk.Button(bas, text="Exporter le rapport…", command=self._exporter).pack(side="right")
+        self.protocol("WM_DELETE_WINDOW", self._fermer)
+
+    def _arbre(self, parent, colonnes):
+        cols = [c[0] for c in colonnes]
+        tree = ttk.Treeview(parent, columns=cols, show="headings")
+        for nom, w in colonnes:
+            tree.heading(nom, text=nom)
+            tree.column(nom, width=w, stretch=(w >= 300))
+        sb = ttk.Scrollbar(parent, orient="vertical", command=tree.yview)
+        tree.configure(yscrollcommand=sb.set)
+        tree.pack(side="left", fill="both", expand=True)
+        sb.pack(side="right", fill="y")
+        return tree
+
+    def _tableau(self, titre, colonnes, lignes):
+        f = ttk.Frame(self.onglets)
+        self.onglets.add(f, text=titre)
+        tree = self._arbre(f, colonnes)
+        for l in lignes:
+            tree.insert("", "end", values=l)
+        return tree
+
+    def _chercher(self):
+        self.t_rech.delete(*self.t_rech.get_children())
+        for d in self.mem.chercher(self.v_texte.get()):
+            self.t_rech.insert("", "end", values=(d["exigence"], d["statut"], d["projet"], d["fournisseur"], d["justification"][:200]))
+
+    def _exporter(self):
+        p = filedialog.asksaveasfilename(title="Rapport de capitalisation", defaultextension=".xlsx", initialfile="capitalisation.xlsx",
+                                         filetypes=[("Classeur Excel", "*.xlsx")], parent=self)
+        if p:
+            self.mem.exporter(p)
+            messagebox.showinfo("SILLAGE", f"Rapport écrit :\n{p}", parent=self)
+
+    def _fermer(self):
+        try:
+            self.mem.close()
+        finally:
+            self.destroy()
 
 
 class FenetreTexte(tk.Toplevel):

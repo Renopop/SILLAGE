@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sillage"
-version = "0.6.0"   # = sillage/version.py (source unique) — voir CHANGELOG.md
+version = "0.7.0"   # = sillage/version.py (source unique) — voir CHANGELOG.md
 description = "Spécifications, Incomplétudes, Livrables : Lecture, Analyse et Grille des Écarts"
 readme = "README.md"
 requires-python = ">=3.9"

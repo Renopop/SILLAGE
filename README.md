@@ -110,6 +110,22 @@ Chaque fiche (écart, risque, questions pour la revue) ne s'appuie que sur la
 ligne de NCM et les passages cités ; elle ne contient pas de verdict, qui
 reste celui de l'ingénieur.
 
+```bat
+:: lot 7 — capitaliser la campagne dans la mémoire des projets, et annoter la grille avec l'historique
+python -m sillage grille --spec SPEC_exigences.xlsx --ncm NCM_fournisseur_revB.xlsx --fournisseur "Fournisseur A" ^
+    --projet "PROJET-2026-12" --capitaliser --signee --memoire --sortie grille_revB.xlsx
+python -m sillage memoire contestees --minimum 2
+python -m sillage memoire acceptes --norme "CS 25.1309"
+python -m sillage memoire fournisseurs
+python -m sillage memoire chercher "DAL C"
+python -m sillage memoire exporter --sortie capitalisation.xlsx
+```
+
+La mémoire (SQLite dans le dossier de données) retient chaque campagne par
+projet, fournisseur et révision ; la grille d'un nouveau projet indique,
+exigence par exigence, si elle a déjà été contestée ailleurs et si un écart
+a déjà été accepté, avec le projet, le fournisseur et la dérogation.
+
 Les seuils d'appui (`--seuil-etaye 0.5 --seuil-faible 0.25`) dépendent du
 reranker servi par la passerelle : à calibrer sur quelques exigences dont on
 connaît la réponse, en s'aidant de la distribution des scores affichée.

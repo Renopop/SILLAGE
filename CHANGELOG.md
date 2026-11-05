@@ -2,6 +2,30 @@
 
 Numérotation MAJEUR.MINEUR.CORRECTIF ; version dans `sillage/version.py`.
 
+## 0.7.0 — 2026-11-05 (lot 7 : capitalisation entre projets)
+
+- `memoire.py` : mémoire locale des campagnes (SQLite dans le dossier de
+  données) ; `enregistrer` (projet, fournisseur, révision, NCM signée, une
+  ligne par exigence : statut, justification, clôture, dérogation, action,
+  appui, alertes, norme), remplacement d'une campagne identique,
+  suppression ; `exigences_contestees` (par couples projet / fournisseur),
+  `ecarts_acceptes` (par exigence ou paragraphe de norme), `par_norme`,
+  `par_fournisseur` (conformité, écarts, ouverts, « C » sans appui),
+  `chercher` ; `historique` d'une exigence hors campagne courante et
+  `annoter` la grille (« vue sur n campagnes, contestée k fois ; écart déjà
+  accepté (projet, fournisseur, dérogation) ») ; rapport Excel en cinq
+  feuilles.
+- Grille : colonne « Historique (mémoire) », exigences déjà contestées et
+  écarts déjà acceptés dans le résumé.
+- Ligne de commande : `memoire campagnes | contestees | acceptes | norme |
+  fournisseurs | chercher | exporter | supprimer` ; `grille --projet
+  --memoire --capitaliser --signee --memoire-fichier`.
+- Interface : champ Projet et case « NCM finale signée », étape
+  « 7. Capitaliser », fenêtre « Mémoire des projets » (campagnes, exigences
+  contestées, écarts acceptés, par norme, par fournisseur, recherche,
+  export), historique dans le détail ; la grille s'annote automatiquement.
+- Tests du lot 7 (mémoire, annotation, export, ligne de commande, interface).
+
 ## 0.6.0 — 2026-11-05 (lot 5 : fiches de revue des écarts, seule étape générative)
 
 - `fiches.py` : pour chaque exigence NC ou PC (ou `--statuts`), le modèle

@@ -139,6 +139,18 @@ SCENARIO = textwrap.dedent('''
     filedialog.asksaveasfilename = lambda *a, **k: sortie_docx
     app.exporter_fiches()
     assert os.path.exists(sortie_docx)
+    # lot 7 : capitaliser la campagne, fenêtre de la mémoire, historique dans le détail
+    app.v_projet.set("PROJET-TEST"); app.v_signee.set(True)
+    app.capitaliser()
+    from sillage.memoire import Memoire
+    with Memoire() as mem:
+        assert [(c.projet, c.signee) for c in mem.campagnes()] == [("PROJET-TEST", True)], mem.campagnes()
+    app.v_projet.set("PROJET-SUIVANT"); app.calculer_grille()
+    item = [i for i in app.tree.get_children() if app.tree.item(i, "text") == "REQ-4"][0]
+    app.tree.selection_set(item); app._afficher_detail()
+    assert "Mémoire des projets" in app.detail.get("1.0", "end") and "écart déjà accepté" in app.detail.get("1.0", "end")
+    fen = gui.FenetreMemoire(app, Memoire()); fen.update(); fen.v_texte.set("DAL"); fen._chercher()
+    assert len(fen.t_rech.get_children()) == 1; fen._fermer()
     # fiche poste et à propos ne lèvent pas
     gui.FenetreTexte = lambda *a, **k: None
     app.fiche_poste(); app.a_propos()

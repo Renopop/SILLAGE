@@ -31,7 +31,7 @@ COLONNES = [
     ("Dérogation", 16), ("Commentaire", 30), ("Norme", 14), ("Alertes", 24), ("Chemin", 9),
     ("Origine", 34), ("Lignes NCM", 10),
     ("Appui", 11), ("Score", 8), ("Passage d'appui", 60), ("Document d'appui", 30), ("Valeurs absentes", 18),
-    ("Affaiblissements", 24), ("Fiche de revue", 70),
+    ("Affaiblissements", 24), ("Fiche de revue", 70), ("Historique (mémoire)", 50),
 ]
 
 
@@ -64,6 +64,7 @@ def exporter_grille(grille: Grille, chemin, couverture=None) -> Path:
             lg.appui_niveau, round(lg.appui_score, 3) if lg.appui_score is not None else "",
             lg.appui_passage, lg.appui_document, ", ".join(lg.valeurs_absentes), ", ".join(lg.affaiblissements),
             lg.fiche or (f"(non rédigée : {lg.fiche_erreur})" if lg.fiche_erreur else ""),
+            lg.historique,
         ])
         r = ws.max_row
         ws.cell(r, 3).fill = PatternFill("solid", fgColor=COULEURS[lg.statut])
@@ -71,8 +72,10 @@ def exporter_grille(grille: Grille, chemin, couverture=None) -> Path:
             ws.cell(r, 14).fill = _ALERTE_FILL
         if lg.appui_niveau:
             ws.cell(r, 18).fill = PatternFill("solid", fgColor=_COULEURS_APPUI.get(lg.appui_niveau, "FFFFFF"))
-        for c in (2, 6, 8, 20, 24):
+        for c in (2, 6, 8, 20, 24, 25):
             ws.cell(r, c).alignment = Alignment(wrap_text=True, vertical="top")
+        if lg.ecart_accepte_avant:
+            ws.cell(r, 25).fill = PatternFill("solid", fgColor=COULEURS[Statut.PARTIEL])
     ws.auto_filter.ref = ws.dimensions
 
     wa = _feuille(wb, "Alertes", [("Type", 16), ("Identifiant", 14), ("Message", 70), ("Origine", 40)])

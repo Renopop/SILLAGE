@@ -60,7 +60,7 @@ nous : les identifiants sont l'invariant, tout le reste s'y rattache.
 | 5 | Fiches de revue pour les NC et PC : exigence, ligne de NCM, norme tracée, passages ; écart, risque, questions pour la revue — seule étape générative, pas de verdict ; dossier Word | oui, bornée | fait (0.6.0) |
 | 3 ter | Moteur de RIVAGE embarqué (copie, synchronisation, sonde) : SILLAGE autonome | non | fait (0.3.0) |
 | 6 | Interface graphique propre à SILLAGE (Tkinter) : projet (spécification, fournisseur, NCM, documents), lecture et diagnostic, confirmation de profil, enrichissement des statuts, indexation, vérification, affaiblissements, diff, grille à l'écran filtrable avec volet de détail, exports ; `sillage_app.py`, `launch.bat`, `install.bat`, `build_exe.bat`, `SILLAGE.spec` | non | fait (0.4.0) |
-| 7 | Capitalisation : une base par projet, questions transverses entre projets (exigences souvent contestées, écarts déjà acceptés) | non | à faire |
+| 7 | Capitalisation : mémoire locale des campagnes (projet, fournisseur, révision, NCM signée), exigences souvent contestées, écarts déjà acceptés, bilans par norme et par fournisseur, recherche, grille annotée de l'historique | non | fait (0.7.0) |
 
 Les lots 1 et 2 forment déjà un outil utile et entièrement déterministe ;
 RIVAGE n'entre qu'au lot 3, en dépendance optionnelle.
@@ -216,6 +216,37 @@ un document entier. Les fiches s'assemblent en un dossier de revue Word, une
 fiche par page, avec les passages cités ; elles se reportent aussi dans la
 grille et le détail de l'interface. Sans passerelle, les fiches sont en
 erreur et rien n'est inventé.
+
+## 5 sexies. Lot 7 — capitalisation entre projets (0.7.0)
+
+Chaque grille calculée peut être **enregistrée** comme campagne dans une
+mémoire locale (SQLite, dossier de données, jamais sur le partage) : projet,
+fournisseur, révision de NCM, NCM finale signée ou non, et une ligne par
+exigence (statut, justification, clôture, dérogation, action, appui,
+alertes, paragraphe de norme). Une campagne identique (projet, fournisseur,
+révision) est remplacée.
+
+La mémoire répond ensuite, sans IA : **exigences contestées** (combien de
+couples projet / fournisseur les ont déclarées NC ou PC, avec les
+justifications : les exigences systématiquement contestées sont mal
+écrites ou trop ambitieuses, à savoir avant la prochaine consultation) ;
+**écarts déjà acceptés** (NC / PC clos par dérogation, par exigence ou par
+paragraphe de norme, avec le projet, le fournisseur et la référence : ce
+qu'on a accepté la dernière fois, et avec quelle justification) ; **par
+paragraphe de norme** ; **par fournisseur** (conformité, écarts, ouverts,
+« C » sans appui) ; **recherche** dans les justifications.
+
+Et elle **annote la grille courante** : pour chaque exigence, l'historique
+sur les autres campagnes (« vue sur 3 campagnes, contestée 2 fois ; écart
+déjà accepté (PROJET-1, Fournisseur B, RFD-0101) »), dans la colonne
+« Historique (mémoire) », le détail de l'interface et le résumé. La
+campagne courante elle-même n'est jamais comptée. Un rapport Excel en cinq
+feuilles résume la mémoire.
+
+L'identifiant d'exigence est la clé : la capitalisation suppose des
+identifiants stables d'un projet à l'autre (même référentiel, ou même
+numérotation). Si les spécifications changent de numérotation, un
+rapprochement par texte serait un lot à part.
 
 ## 5 ter. Le moteur embarqué (0.3.0) — SILLAGE autonome
 

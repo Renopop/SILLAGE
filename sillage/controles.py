@@ -70,6 +70,10 @@ class LigneGrille:
     # lot 5 : fiche de revue rédigée (texte du modèle), vide sinon
     fiche: str = ""
     fiche_erreur: str = ""
+    # lot 7 : historique de l'exigence dans la mémoire des projets
+    historique: str = ""
+    contestations: int = 0
+    ecart_accepte_avant: bool = False
 
 
 @dataclass
@@ -89,6 +93,8 @@ class Grille:
                   C_SANS_APPUI, C_FAIBLE, VALEURS_ABSENTES, AFFAIBLISSEMENT, IMPACT_NORME):
             r[t] = sum(1 for a in self.alertes if a.type == t)
         r["tracees"] = sum(1 for l in self.lignes if l.dans_referentiel and l.norme)
+        r["deja_contestees"] = sum(1 for l in self.lignes if l.dans_referentiel and l.contestations)
+        r["deja_acceptees"] = sum(1 for l in self.lignes if l.dans_referentiel and l.ecart_accepte_avant)
         r["ecarts"] = sum(1 for l in self.lignes if l.dans_referentiel and l.statut in (Statut.PARTIEL, Statut.NON_CONFORME))
         r["couverts"] = r["exigences"] - r[TROU]
         return r
@@ -110,6 +116,9 @@ class Grille:
             lignes.append(f"Exigences avec affaiblissement à proximité : {r[AFFAIBLISSEMENT]}")
         if r["tracees"]:
             lignes.append(f"Exigences tracées vers la norme : {r['tracees']} — écarts à impact norme : {r[IMPACT_NORME]}")
+        if r["deja_contestees"] or r["deja_acceptees"]:
+            lignes.append(f"Mémoire des projets : {r['deja_contestees']} exigence(s) déjà contestée(s) ailleurs, "
+                          f"{r['deja_acceptees']} avec un écart déjà accepté")
         return "\n".join(lignes)
 
     def impacts_norme(self) -> List["LigneGrille"]:

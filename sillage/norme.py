@@ -31,7 +31,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Dict, Iterable, List, Optional, Sequence, Tuple
 
-from .modele import Exigence
 from .referentiel import Referentiel
 from .rivage import Moteur, Passage
 

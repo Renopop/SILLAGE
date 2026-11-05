@@ -40,7 +40,7 @@ def localiser() -> Optional[str]:
         from .moteur import activer
         dossier = str(activer())
     try:
-        import retrieval  # noqa: F401
+        import retrieval  # noqa: F401  (contrôle d'importabilité)
         import indexer  # noqa: F401
     except Exception as exc:   # ImportError, mais aussi une DLL faiss qui refuse de se charger
         _ERREUR = f"{type(exc).__name__}: {exc}"

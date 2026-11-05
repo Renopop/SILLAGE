@@ -163,8 +163,9 @@ def reconnaitre_colonnes(tableau: Tableau, motif: MotifIdentifiant, dico: Dictio
 
 
 def revision_depuis_nom(nom: str) -> str:
-    m = re.search(r"(?:rev|r[ée]v(?:ision)?|issue|iss|ed(?:ition)?|ind(?:ice)?|v)[ _.\-]*([A-Z]{1,2}\d{0,2}|\d{1,3}(?:\.\d+)?)(?![A-Za-z0-9])",
-                  Path(nom).stem, re.IGNORECASE)
+    # le mot-clé doit commencer un « mot » du nom (pas « div » ni « valve ») ; « v » seul exige un séparateur ou un chiffre juste après
+    m = re.search(r"(?<![A-Za-z])(?:rev|r[ée]v(?:ision)?|issue|iss|ed(?:ition)?|ind(?:ice)?|v(?=[ _.\-]*\d))[ _.\-]*"
+                  r"([A-Z]{1,2}\d{0,2}|\d{1,3}(?:\.\d+)?)(?![A-Za-z0-9])", Path(nom).stem, re.IGNORECASE)
     return m.group(1).upper() if m else ""
 
 

@@ -4,8 +4,8 @@ from conftest import SPEC, ecrire_xlsx
 from test_lot3_rivage import FakeEmbedder, FakeReranker
 
 from sillage import rivage
-from sillage.norme import (Tracabilite, appliquer, couverture, exporter_tracabilite, importer_tracabilite,
-                           paragraphes_cites, references_norme, tracer)
+from sillage.norme import (Tracabilite, appliquer, couverture, exporter_tracabilite, paragraphes_cites,
+                           references_norme, tracer)
 from sillage.referentiel import lire_referentiel
 
 pytestmark = pytest.mark.skipif(not rivage.disponible(), reason="moteur embarqué inutilisable : " + rivage.erreur())

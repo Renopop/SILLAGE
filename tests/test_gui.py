@@ -1,6 +1,5 @@
 """Interface graphique : construction, lecture d'une NCM, grille à l'écran,
 filtres, détail, dialogues — sous un serveur X virtuel (Xvfb) si disponible."""
-import queue
 import shutil
 import subprocess
 import sys

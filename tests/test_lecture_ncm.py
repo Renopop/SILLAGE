@@ -121,3 +121,5 @@ def test_revision_depuis_nom():
     assert revision_depuis_nom("ncm-issue-A2.pdf") == "A2"
     assert revision_depuis_nom("ncm_v1.2.xlsx") == "1.2"
     assert revision_depuis_nom("ncm.xlsx") == ""
+    assert revision_depuis_nom("Spec_div_A1.xlsx") == "" and revision_depuis_nom("NCM_valve_01.xlsx") == ""
+    assert revision_depuis_nom("NCM_ind_C.xlsx") == "C"

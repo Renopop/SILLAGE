@@ -27,10 +27,9 @@ import sqlite3
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from .config import dossier_donnees
-from .modele import Statut
 
 ECARTS = ("NC", "PC")
 

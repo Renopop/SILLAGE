@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Optional
 
 from .modele import Statut
-from .version import VERSION_LABEL, __version__
+from .version import VERSION_LABEL
 
 
 def _motif_et_ref(spec: Optional[str]):
@@ -392,12 +392,12 @@ def cmd_statuts(a) -> int:
 
 
 def cmd_profils(a) -> int:
-    from .profils import lister, Profil
+    from .profils import lister
     if a.proposer:
         if not a.fournisseur:
             print("--fournisseur est requis avec --proposer", file=sys.stderr)
             return 2
-        from .lecture_ncm import lire_ncm, profil_depuis_colonnes, reconnaitre_colonnes
+        from .lecture_ncm import profil_depuis_colonnes, reconnaitre_colonnes
         from .statuts import DictionnaireStatuts
         from .tableaux import lire_tableaux
         motif, _ = _motif_et_ref(a.spec)

@@ -22,3 +22,6 @@ build_info.json
 !docs/*.pdf
 !docs/*.pptx
 *_grille.xlsx
+
+.coverage
+htmlcov/

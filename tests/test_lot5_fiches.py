@@ -1,7 +1,6 @@
 """Lot 5 : fiches de revue — faux client de synthèse (aucune passerelle)."""
 from types import SimpleNamespace
 
-import pytest
 from conftest import NCM_A, SPEC, ecrire_xlsx
 
 from sillage.fiches import CONSIGNE, Fiches, construire_contexte, exporter_fiches, rediger

@@ -2,6 +2,16 @@
 
 Numérotation MAJEUR.MINEUR.CORRECTIF ; version dans `sillage/version.py`.
 
+## 0.7.1 — 2026-11-05 (audit qualité, corrections)
+
+- `docs/AUDIT_QUALITE_SILLAGE.md` : audit complet (méthode, synthèse,
+  architecture, constats classés, sécurité, performance, tests,
+  documentation, plan d'actions) et `docs/captures/` (15 captures de toute
+  l'interface sous Xvfb).
+- Corrections : la fiche « Ce poste » affichait la liste brute des lignes ;
+  la révision déduite du nom de fichier prenait « div » ou « valve » pour un
+  marqueur de version ; imports inutiles retirés ; `.coverage` ignoré.
+
 ## 0.7.0 — 2026-11-05 (lot 7 : capitalisation entre projets)
 
 - `memoire.py` : mémoire locale des campagnes (SQLite dans le dossier de

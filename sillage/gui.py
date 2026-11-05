@@ -28,7 +28,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 from .config import dossier_donnees, dossier_index
 from .modele import Statut
-from .version import VERSION_LABEL, __version__
+from .version import VERSION_LABEL
 
 logger = logging.getLogger("sillage.gui")
 
@@ -896,7 +896,8 @@ class Application(tk.Tk):
             from .rivage import localiser
             localiser()
             import diagnostic
-            texte = diagnostic.fiche_texte(diagnostic.fiche_plateforme())
+            lignes = diagnostic.fiche_texte(diagnostic.fiche_plateforme())
+            texte = "\n".join(lignes) if isinstance(lignes, (list, tuple)) else str(lignes)
         except Exception as exc:
             texte = f"Fiche indisponible : {type(exc).__name__}: {exc}"
         FenetreTexte(self, "Ce poste", f"{VERSION_LABEL} — moteur embarqué RIVAGE {self._version_moteur()}\n\n{texte}")

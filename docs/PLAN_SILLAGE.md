@@ -57,7 +57,7 @@ nous : les identifiants sont l'invariant, tout le reste s'y rattache.
 | 2 | Référentiel et contrôles : lecture de la spécification (tableur ou document), trous, orphelins, doublons, incohérences, diff entre révisions, clôture des écarts, **grille des écarts** (xlsx) et ligne de commande | non | fait (0.1.0) |
 | 3 | Vérification des « C » avec RIVAGE : pour chaque exigence déclarée conforme, le passage de la spécification fournisseur qui l'étaye et son score ; « C » sans appui en tête de revue ; valeurs chiffrées de l'exigence citées ou non ; campagne lexicale des affaiblissements (TBD, TBC, where practicable…) ; indexation des documents du fournisseur par le moteur de RIVAGE | non (scores) | fait (0.2.0) |
 | 4 | Traçabilité vers la norme : proposition par le moteur (exigence → paragraphes cités par ses meilleurs passages dans l'index de la norme), classeur de relecture, figement, alerte « impact norme » sur tout écart tracé, couverture de la norme (paragraphes sans exigence) | non (scores) | fait (0.5.0) |
-| 5 | Fiches de revue pour les NC et PC : exigence, ligne de NCM, passages, résumé de l'écart et du risque — seule étape générative, verdict laissé à l'ingénieur | oui, bornée | à faire |
+| 5 | Fiches de revue pour les NC et PC : exigence, ligne de NCM, norme tracée, passages ; écart, risque, questions pour la revue — seule étape générative, pas de verdict ; dossier Word | oui, bornée | fait (0.6.0) |
 | 3 ter | Moteur de RIVAGE embarqué (copie, synchronisation, sonde) : SILLAGE autonome | non | fait (0.3.0) |
 | 6 | Interface graphique propre à SILLAGE (Tkinter) : projet (spécification, fournisseur, NCM, documents), lecture et diagnostic, confirmation de profil, enrichissement des statuts, indexation, vérification, affaiblissements, diff, grille à l'écran filtrable avec volet de détail, exports ; `sillage_app.py`, `launch.bat`, `install.bat`, `build_exe.bat`, `SILLAGE.spec` | non | fait (0.4.0) |
 | 7 | Capitalisation : une base par projet, questions transverses entre projets (exigences souvent contestées, écarts déjà acceptés) | non | à faire |
@@ -198,6 +198,24 @@ priorité.
 feuille « Couverture norme » liste chaque paragraphe cité et les exigences
 qui s'y rattachent ; un paragraphe sans exigence est soit non applicable,
 soit un manque de la spécification : colonne « Applicable ? » à remplir.
+
+## 5 quinquies. Lot 5 — fiches de revue (0.6.0)
+
+La seule étape où un modèle de langue écrit. Il reçoit, pour **une**
+exigence NC ou PC : l'exigence, la ligne de NCM (statut, justification,
+action, échéance, dérogation), le paragraphe de norme tracé, et les passages
+de la spécification fournisseur (ceux de la campagne d'appuis, ou cherchés à
+la demande). Il rédige trois parties à titres fixes : **ÉCART** (deux
+phrases), **RISQUE** (technique ; certification si l'exigence est tracée),
+**QUESTIONS POUR LA REVUE** (trois au plus). Consignes : ne rien affirmer
+qui ne soit dans la NCM ou un passage, citer [i] ou « (NCM) », dire quand les
+passages ne disent rien, **pas de verdict** : c'est celui de l'ingénieur.
+
+Le modèle ne cherche jamais (les passages lui sont donnés) et ne voit jamais
+un document entier. Les fiches s'assemblent en un dossier de revue Word, une
+fiche par page, avec les passages cités ; elles se reportent aussi dans la
+grille et le détail de l'interface. Sans passerelle, les fiches sont en
+erreur et rien n'est inventé.
 
 ## 5 ter. Le moteur embarqué (0.3.0) — SILLAGE autonome
 

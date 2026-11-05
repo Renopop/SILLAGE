@@ -6,6 +6,7 @@
     sillage statuts [--ajouter "valeur=C"]
     sillage profils [--proposer NCM --fournisseur F]
     sillage tracer --spec SPEC --index INDEX_NORME [--json t.json] [--xlsx t.xlsx]
+    sillage fiches --spec SPEC --ncm NCM [--appuis a.json] [--json f.json] [--docx f.docx]
     sillage couverture --spec SPEC [--tracabilite T] [--norme-documents F...]
     sillage gui
     sillage version
@@ -115,7 +116,10 @@ def cmd_grille(a) -> int:
     trac = _tracabilite(a)
     if trac is not None:
         print(trac.texte_resume())
-    g = controler(ref, ncm, campagne=campagne, releve=releve, tracabilite=trac)
+    fiches = _fiches(a)
+    if fiches is not None:
+        print(fiches.texte_resume())
+    g = controler(ref, ncm, campagne=campagne, releve=releve, tracabilite=trac, fiches=fiches)
     print(g.texte_resume())
     couv = _couverture(a, ref)
     if couv is not None:
@@ -123,6 +127,55 @@ def cmd_grille(a) -> int:
     sortie = a.sortie or str(Path(a.ncm).with_suffix("")) + "_grille.xlsx"
     exporter_grille(g, sortie, couverture=couv)
     print(f"Grille écrite : {sortie}")
+    return 0
+
+
+def _fiches(a):
+    from .fiches import Fiches
+    chemin = getattr(a, "fiches", None)
+    return Fiches.charger(chemin) if chemin else None
+
+
+def cmd_fiches(a) -> int:
+    from .fiches import exporter_fiches, ouvrir_synthesizer, rediger
+    from .rivage import Moteur, disponible, message_absent
+    if not disponible():
+        print(message_absent(), file=sys.stderr)
+        return 1
+    ncm, ref = _lire(a.ncm, a.spec, a.fournisseur, a.revision, a.sans_profil)
+    trac = _tracabilite(a)
+    if trac is not None:
+        from .norme import appliquer
+        appliquer(ref, trac)
+    campagne = None
+    if a.appuis:
+        from .appui import Campagne
+        campagne = Campagne.charger(a.appuis)
+    statuts = [s.strip().upper() for s in (a.statuts or "NC,PC").split(",") if s.strip()]
+    print(f"{VERSION_LABEL} — fiches de revue des statuts {', '.join(statuts)} de {Path(a.ncm).name}")
+    def progression(k, n, ident):
+        print(f"  [{k}/{n}] {ident}", end="\r", flush=True)
+    synth = ouvrir_synthesizer()
+    try:
+        if a.index and not a.appuis:
+            with Moteur(a.index) as moteur:
+                f = rediger(ref, ncm, synth, campagne=campagne, moteur=moteur, statuts=statuts, n_passages=a.n_passages,
+                            prefixes=a.dossier or None, fichiers=a.documents or None, progression=progression)
+        else:
+            f = rediger(ref, ncm, synth, campagne=campagne, statuts=statuts, n_passages=a.n_passages, progression=progression)
+    finally:
+        try:
+            synth.close()
+        except Exception:
+            pass
+    print()
+    print(f.texte_resume())
+    if a.json:
+        f.enregistrer(a.json)
+        print(f"Fiches écrites : {a.json}")
+    docx_out = a.docx or (str(Path(a.ncm).with_suffix("")) + "_fiches_revue.docx")
+    exporter_fiches(f, ref, ncm, docx_out)
+    print(f"Dossier de revue écrit : {docx_out}")
     return 0
 
 
@@ -350,8 +403,24 @@ def construire_parseur() -> argparse.ArgumentParser:
     q.add_argument("--affaiblissements", action="append", metavar="FICHIER", help="lot 3 : documents du fournisseur à passer au crible lexical (répétable)")
     q.add_argument("--tracabilite", metavar="FICHIER", help="lot 4 : traçabilité vers la norme (JSON de « tracer », ou classeur relu)")
     q.add_argument("--norme-documents", action="append", metavar="FICHIER", help="lot 4 : documents de la norme, pour la feuille de couverture (répétable)")
+    q.add_argument("--fiches", metavar="JSON", help="lot 5 : fiches de revue enregistrées par « fiches --json », reportées dans la grille")
     options_rivage(q)
     q.set_defaults(fonction=cmd_grille)
+
+    q = sp.add_parser("fiches", help="lot 5 : fiches de revue des écarts (NC, PC) rédigées par le modèle — seule étape générative")
+    q.add_argument("--ncm", required=True)
+    commun(q, spec_obligatoire=True)
+    q.add_argument("--revision", default="")
+    q.add_argument("--appuis", metavar="JSON", help="campagne d'appuis (lot 3) : ses passages servent aux fiches")
+    q.add_argument("--tracabilite", metavar="FICHIER", help="traçabilité vers la norme (lot 4)")
+    q.add_argument("--index", help="sans campagne d'appuis : index des documents du fournisseur pour chercher les passages")
+    q.add_argument("--dossier", action="append", metavar="PREFIXE")
+    q.add_argument("--documents", action="append", metavar="CHEMIN")
+    q.add_argument("--statuts", default="NC,PC", help="statuts NCM à traiter (défaut : NC,PC)")
+    q.add_argument("--n-passages", type=int, default=3)
+    q.add_argument("--json", help="enregistrer les fiches (JSON, réutilisable par « grille --fiches »)")
+    q.add_argument("--docx", help="dossier de revue Word (défaut : <ncm>_fiches_revue.docx)")
+    q.set_defaults(fonction=cmd_fiches)
 
     q = sp.add_parser("tracer", help="lot 4 : proposer, pour chaque exigence, le paragraphe de norme (index de la norme)")
     q.add_argument("--spec", required=True)

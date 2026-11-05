@@ -99,6 +99,17 @@ norme » et figure dans la feuille « Impact norme » du classeur : c'est la
 liste des risques de certification. La feuille « Couverture norme » donne les
 paragraphes cités par la norme et les exigences rattachées à chacun.
 
+```bat
+:: lot 5 — fiches de revue des écarts (NC, PC), rédigées par le modèle de la passerelle : dossier Word
+python -m sillage fiches --spec SPEC_exigences.xlsx --ncm NCM_fournisseur_revB.xlsx --fournisseur "Fournisseur A" ^
+    --appuis appuis_revB.json --tracabilite trac_relecture.xlsx --json fiches_revB.json --docx revue_revB.docx
+python -m sillage grille --spec SPEC_exigences.xlsx --ncm NCM_fournisseur_revB.xlsx --fiches fiches_revB.json --sortie grille_revB.xlsx
+```
+
+Chaque fiche (écart, risque, questions pour la revue) ne s'appuie que sur la
+ligne de NCM et les passages cités ; elle ne contient pas de verdict, qui
+reste celui de l'ingénieur.
+
 Les seuils d'appui (`--seuil-etaye 0.5 --seuil-faible 0.25`) dépendent du
 reranker servi par la passerelle : à calibrer sur quelques exigences dont on
 connaît la réponse, en s'aidant de la distribution des scores affichée.

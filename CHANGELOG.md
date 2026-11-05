@@ -2,6 +2,29 @@
 
 Numérotation MAJEUR.MINEUR.CORRECTIF ; version dans `sillage/version.py`.
 
+## 0.6.0 — 2026-11-05 (lot 5 : fiches de revue des écarts, seule étape générative)
+
+- `fiches.py` : pour chaque exigence NC ou PC (ou `--statuts`), le modèle
+  de la passerelle reçoit l'exigence, sa ou ses lignes de NCM (statut,
+  justification, action, échéance, dérogation), le paragraphe de norme tracé
+  et les passages de la spécification fournisseur (campagne d'appuis du
+  lot 3, ou recherche à la demande par le moteur), et rédige une fiche en
+  trois parties : ÉCART, RISQUE, QUESTIONS POUR LA REVUE. Pas de verdict ;
+  chaque affirmation cite un passage [i] ou la ligne de NCM ; les passages
+  muets sont dits tels. Même client que RIVAGE (`synthesis.Synthesizer`
+  embarqué : retries, repli, mode dégradé et troncature signalés).
+- Dossier de revue Word (`exporter_fiches`) : une fiche par page
+  (exigence, norme, ligne de NCM, fiche, passages cités) ; JSON
+  aller-retour ; fiche reportée dans la grille (colonne « Fiche de revue »)
+  et dans le détail de l'interface.
+- Ligne de commande : `fiches` (`--appuis`, `--tracabilite`, `--index`,
+  `--statuts`, `--json`, `--docx`) ; `grille --fiches`.
+- Interface : étape « 6. Fiches de revue », Outils → exporter en Word,
+  enregistrer / reprendre en JSON.
+- Tests du lot 5 avec un faux client de synthèse (contexte, rédaction avec
+  campagne, à la demande, sans passerelle, Word, grille, ligne de commande,
+  interface).
+
 ## 0.5.0 — 2026-11-05 (lot 4 : traçabilité vers la norme)
 
 - `norme.py` : références de paragraphes reconnues et normalisées (CS, AMC,

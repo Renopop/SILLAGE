@@ -85,6 +85,7 @@ class Application(tk.Tk):
         self.diff = None
         self.tracabilite = None
         self.norme_documents: List[str] = []
+        self.fiches = None
         self.en_cours = False
         self._lignes_par_item: Dict[str, Any] = {}
         self.reglages = self._charger_reglages()
@@ -187,6 +188,7 @@ class Application(tk.Tk):
             ("indexer", "3. Indexer les documents", self.indexer),
             ("verifier", "4. Vérifier les « C »", self.verifier),
             ("affaiblissements", "5. Affaiblissements", self.affaiblissements),
+            ("fiches", "6. Fiches de revue", self.rediger_fiches),
             ("exporter", "Exporter la grille…", self.exporter_grille),
         ]:
             b = ttk.Button(actions, text=libelle, command=cmd)
@@ -306,6 +308,10 @@ class Application(tk.Tk):
         outils.add_command(label="Enregistrer la NCM normalisée (JSON)…", command=self.enregistrer_ncm_json)
         outils.add_command(label="Enregistrer la campagne d'appuis (JSON)…", command=self.enregistrer_appuis_json)
         outils.add_command(label="Reprendre une campagne d'appuis (JSON)…", command=self.charger_appuis_json)
+        outils.add_separator()
+        outils.add_command(label="Exporter les fiches de revue (Word)…", command=self.exporter_fiches)
+        outils.add_command(label="Enregistrer les fiches de revue (JSON)…", command=self.enregistrer_fiches_json)
+        outils.add_command(label="Reprendre des fiches de revue (JSON)…", command=self.charger_fiches_json)
         outils.add_separator()
         outils.add_separator()
         outils.add_command(label="Tracer les exigences vers la norme…", command=self.tracer_norme)
@@ -468,7 +474,8 @@ class Application(tk.Tk):
             self.lire_ncm()
             return
         from .controles import controler
-        self.grille = controler(self.ref, self.ncm, campagne=self.campagne, releve=self.releve, tracabilite=self.tracabilite)
+        self.grille = controler(self.ref, self.ncm, campagne=self.campagne, releve=self.releve, tracabilite=self.tracabilite,
+                                fiches=self.fiches)
         self._ecrire(self.t_resume, self.grille.texte_resume())
         self._rafraichir_grille()
         self.onglets.select(1)
@@ -633,6 +640,90 @@ class Application(tk.Tk):
         if p:
             self.campagne.enregistrer(p)
             self._journal(f"Campagne d'appuis écrite : {p}")
+
+    # --- lot 5 : fiches de revue -----------------------------------------------------------------
+    def rediger_fiches(self):
+        from .rivage import Moteur, disponible, message_absent
+        if not disponible():
+            messagebox.showerror("SILLAGE", message_absent())
+            return
+        if self.ncm is None:
+            messagebox.showwarning("SILLAGE", "Lisez d'abord la NCM.")
+            return
+        ref, ncm, campagne = self.ref, self.ncm, self.campagne
+        index_dir = self._index_dir()
+        docs = self.v_documents.get().strip()
+        prefixes = [docs] if docs and os.path.isdir(docs) else None
+        avec_moteur = campagne is None and os.path.isdir(index_dir)
+        if campagne is None and not avec_moteur:
+            if not messagebox.askyesno("SILLAGE", "Aucune campagne d'appuis (étape 4) et aucun index des documents du fournisseur : "
+                                       "les fiches seront rédigées sans passage de la spécification fournisseur, à partir "
+                                       "de la seule ligne de NCM.\nContinuer ?"):
+                return
+
+        def travail():
+            from .fiches import ouvrir_synthesizer, rediger
+            def prog(k, n, ident):
+                self.q.put(("progression", f"Fiche {k}/{n} — {ident}"))
+            synth = ouvrir_synthesizer()
+            try:
+                if avec_moteur:
+                    with Moteur(index_dir) as moteur:
+                        return rediger(ref, ncm, synth, campagne=None, moteur=moteur, prefixes=prefixes, progression=prog)
+                return rediger(ref, ncm, synth, campagne=campagne, progression=prog)
+            finally:
+                try:
+                    synth.close()
+                except Exception:
+                    pass
+
+        def fin(fiches):
+            self.fiches = fiches
+            self._journal(fiches.texte_resume())
+            self._ecrire(self.t_diag, fiches.texte_resume())
+            self.calculer_grille()
+            r = fiches.resume()
+            if r["erreurs"] and not r["redigees"]:
+                messagebox.showwarning("SILLAGE", "Aucune fiche rédigée.\n" + fiches.texte_resume())
+
+        self._lancer("fiches de revue", travail, fin, "Rédaction des fiches de revue par le modèle…")
+
+    def exporter_fiches(self):
+        if self.fiches is None or self.ncm is None:
+            messagebox.showwarning("SILLAGE", "Rédigez d'abord les fiches de revue (étape 6).")
+            return
+        defaut = Path(self.v_ncm.get()).stem + "_fiches_revue.docx" if self.v_ncm.get() else "fiches_revue.docx"
+        p = filedialog.asksaveasfilename(title="Dossier de revue (Word)", defaultextension=".docx", initialfile=defaut,
+                                         filetypes=[("Document Word", "*.docx")])
+        if not p:
+            return
+        from .fiches import exporter_fiches
+        exporter_fiches(self.fiches, self.ref, self.ncm, p)
+        self._journal(f"Dossier de revue écrit : {p}")
+        messagebox.showinfo("SILLAGE", f"Dossier de revue écrit :\n{p}")
+
+    def enregistrer_fiches_json(self):
+        if self.fiches is None:
+            messagebox.showwarning("SILLAGE", "Rédigez d'abord les fiches de revue.")
+            return
+        p = filedialog.asksaveasfilename(title="Fiches de revue", defaultextension=".json", filetypes=[("JSON", "*.json")])
+        if p:
+            self.fiches.enregistrer(p)
+            self._journal(f"Fiches écrites : {p}")
+
+    def charger_fiches_json(self):
+        p = filedialog.askopenfilename(title="Fiches de revue", filetypes=[("JSON", "*.json")])
+        if not p:
+            return
+        from .fiches import Fiches
+        try:
+            self.fiches = Fiches.charger(p)
+        except (OSError, ValueError, KeyError) as exc:
+            messagebox.showerror("SILLAGE", f"Fichier refusé : {exc}")
+            return
+        self._journal(f"Fiches reprises : {p} — " + self.fiches.texte_resume())
+        if self.ncm is not None:
+            self.calculer_grille()
 
     # --- lot 4 : norme ----------------------------------------------------------------------
     def tracer_norme(self):
@@ -856,6 +947,9 @@ class Application(tk.Tk):
         if lg.affaiblissements:
             ins("end", "Affaiblissements à proximité\n", "titre")
             ins("end", ", ".join(lg.affaiblissements) + "\n", "rouge")
+        if lg.fiche or lg.fiche_erreur:
+            ins("end", "Fiche de revue (rédigée par le modèle, verdict à vous)\n", "titre")
+            ins("end", (lg.fiche or f"non rédigée : {lg.fiche_erreur}") + "\n")
         if lg.alertes:
             ins("end", "Alertes\n", "titre")
             ins("end", "\n".join(LIBELLES_ALERTES.get(a, a) for a in lg.alertes) + "\n", "rouge")

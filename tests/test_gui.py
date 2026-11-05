@@ -116,6 +116,27 @@ SCENARIO = textwrap.dedent('''
     app.v_alerte_filtre.set("toutes"); app._rafraichir_grille()
     gui.DialogueTracer = lambda parent, idx="": type("D", (), {"resultat": None, "destroy": lambda self: None})()
     app.tracer_norme()
+    # lot 5 : fiches de revue avec un faux client de synthèse, export Word
+    import sillage.fiches as fiches_mod
+    from types import SimpleNamespace
+    class FauxSynth:
+        def available(self): return True
+        def synthesize_raw(self, question, user_content, sources, log=None, temperature=0.1, max_tokens=1024, system_prompt=None):
+            return SimpleNamespace(answer="ÉCART :\nécart (NCM).\nRISQUE :\nrisque (NCM).\nQUESTIONS POUR LA REVUE :\n1. ?", sources=sources,
+                                   model="faux", error=None, fallback_used=False, tronquee=False)
+        def close(self): pass
+    fiches_mod.ouvrir_synthesizer = lambda log=None: FauxSynth()
+    messagebox.askyesno = lambda *a, **k: True
+    app.rediger_fiches()
+    attendre(lambda: app.fiches is not None and not app.en_cours)
+    assert sorted(app.fiches.fiches) == ["REQ-2", "REQ-4"], list(app.fiches.fiches)
+    item = [i for i in app.tree.get_children() if app.tree.item(i, "text") == "REQ-4"][0]
+    app.tree.selection_set(item); app._afficher_detail()
+    assert "Fiche de revue" in app.detail.get("1.0", "end")
+    sortie_docx = os.path.join(tmp, "fiches.docx")
+    filedialog.asksaveasfilename = lambda *a, **k: sortie_docx
+    app.exporter_fiches()
+    assert os.path.exists(sortie_docx)
     # fiche poste et à propos ne lèvent pas
     gui.FenetreTexte = lambda *a, **k: None
     app.fiche_poste(); app.a_propos()

@@ -67,6 +67,9 @@ class LigneGrille:
     appui_document: str = ""
     valeurs_absentes: List[str] = field(default_factory=list)
     affaiblissements: List[str] = field(default_factory=list)
+    # lot 5 : fiche de revue rédigée (texte du modèle), vide sinon
+    fiche: str = ""
+    fiche_erreur: str = ""
 
 
 @dataclass
@@ -123,11 +126,12 @@ def cloture_de(ligne: LigneNCM) -> str:
     return CLOTURE_OUVERT
 
 
-def controler(ref: Referentiel, ncm: NCM, campagne=None, releve=None, tracabilite=None) -> Grille:
+def controler(ref: Referentiel, ncm: NCM, campagne=None, releve=None, tracabilite=None, fiches=None) -> Grille:
     """Grille des écarts. `campagne` (appui.Campagne) et `releve`
     (affaiblissements.Releve) sont les résultats optionnels du lot 3 ;
     `tracabilite` (norme.Tracabilite) celui du lot 4, reporté dans le champ
-    `norme` des exigences avant les contrôles."""
+    `norme` des exigences avant les contrôles ; `fiches` (fiches.Fiches)
+    celui du lot 5 (texte de la fiche reporté sur la ligne)."""
     if tracabilite is not None:
         from .norme import appliquer
         appliquer(ref, tracabilite)
@@ -136,6 +140,7 @@ def controler(ref: Referentiel, ncm: NCM, campagne=None, releve=None, tracabilit
     exigences = ref.par_id()
     appuis = campagne.appuis if campagne is not None else {}
     affaibl = releve.par_id() if releve is not None else {}
+    fiches_par_id = fiches.fiches if fiches is not None else {}
 
     for ident in ref.ids:
         e = exigences[ident]
@@ -157,6 +162,9 @@ def controler(ref: Referentiel, ncm: NCM, campagne=None, releve=None, tracabilit
         if lg.norme and lg.statut in (Statut.PARTIEL, Statut.NON_CONFORME, Statut.INCONNU):
             lg.alertes.append(IMPACT_NORME)
             g.alertes.append(Alerte(IMPACT_NORME, ident, f"{lg.statut.libelle} sur une exigence tracée vers {lg.norme}", lg.origine))
+        if ident in fiches_par_id:
+            lg.fiche = fiches_par_id[ident].texte
+            lg.fiche_erreur = fiches_par_id[ident].erreur
         g.lignes.append(lg)
 
     for ident in trier([i for i in par_id if i not in exigences]):

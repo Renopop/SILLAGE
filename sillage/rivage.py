@@ -1,16 +1,13 @@
-"""Pont vers RIVAGE : SILLAGE est un client du moteur de RIVAGE, pas une réécriture.
+"""Pont vers le moteur de RIVAGE, embarqué dans SILLAGE (`sillage/moteur/`).
 
 Tout ce qui lit du texte par le sens (vérification des « conformes »,
-traçabilité vers la norme, fiches de revue) passe par l'index publié de
-RIVAGE, sa portée par chemins, sa chaîne hybride et son reranking.
+traçabilité vers la norme, fiches de revue) passe par un index RIVAGE, sa
+portée par chemins, sa chaîne hybride et son reranking. SILLAGE n'en réécrit
+rien et n'exige aucune installation de RIVAGE : la copie embarquée suffit.
 
-Localisation des modules de RIVAGE (modules plats : `retrieval`, `query`,
-`indexer`…), dans l'ordre :
-
-1. déjà importables (RIVAGE installé dans le même environnement : `pip install
-   chemin/vers/RIVAGE`) ;
-2. `SILLAGE_RIVAGE_DIR` ou `RIVAGE_DIR` ;
-3. un dossier `RIVAGE` (ou `rivage`) voisin du dépôt SILLAGE.
+Pour le développement, `SILLAGE_RIVAGE_DIR` désigne un dépôt RIVAGE à utiliser
+à la place de la copie embarquée (essai d'une version plus récente avant de la
+synchroniser avec `outils/synchroniser_rivage.py`).
 """
 
 from __future__ import annotations
@@ -25,39 +22,47 @@ from typing import List, Optional, Sequence, Tuple
 logger = logging.getLogger("sillage.rivage")
 
 _LOCALISE: Optional[str] = None
+_ERREUR: str = ""
 
 
 def localiser() -> Optional[str]:
-    """Rend importables les modules de RIVAGE ; renvoie leur dossier, ou None."""
-    global _LOCALISE
+    """Rend importables les modules du moteur ; renvoie leur dossier, ou None
+    (et `erreur()` dit pourquoi : dépendance manquante, par exemple faiss)."""
+    global _LOCALISE, _ERREUR
     if _LOCALISE:
         return _LOCALISE
+    externe = os.environ.get("SILLAGE_RIVAGE_DIR")
+    if externe and (Path(externe) / "retrieval.py").exists():
+        if externe not in sys.path:
+            sys.path.insert(0, externe)
+        dossier = externe
+    else:
+        from .moteur import activer
+        dossier = str(activer())
     try:
         import retrieval  # noqa: F401
-        _LOCALISE = str(Path(retrieval.__file__).resolve().parent)
-        return _LOCALISE
-    except ImportError:
-        pass
-    racine = Path(__file__).resolve().parents[1]
-    candidats = [os.environ.get("SILLAGE_RIVAGE_DIR"), os.environ.get("RIVAGE_DIR"),
-                 racine.parent / "RIVAGE", racine.parent / "rivage", racine / "RIVAGE"]
-    for c in candidats:
-        if not c:
-            continue
-        p = Path(c)
-        if (p / "retrieval.py").exists() and (p / "query.py").exists():
-            sys.path.insert(0, str(p))
-            _LOCALISE = str(p)
-            return _LOCALISE
-    return None
+        import indexer  # noqa: F401
+    except Exception as exc:   # ImportError, mais aussi une DLL faiss qui refuse de se charger
+        _ERREUR = f"{type(exc).__name__}: {exc}"
+        return None
+    _LOCALISE = dossier
+    return _LOCALISE
 
 
 def disponible() -> bool:
     return localiser() is not None
 
 
-MESSAGE_ABSENT = ("RIVAGE introuvable : installez-le dans le même environnement (pip install chemin\\vers\\RIVAGE) "
-                  "ou indiquez son dossier par SILLAGE_RIVAGE_DIR")
+def erreur() -> str:
+    return _ERREUR
+
+
+def message_absent() -> str:
+    return ("moteur embarqué inutilisable" + (f" ({_ERREUR})" if _ERREUR else "") +
+            " : vérifiez l'installation des dépendances (requirements.txt : numpy, faiss-cpu, httpx…)")
+
+
+MESSAGE_ABSENT = "moteur embarqué inutilisable : vérifiez l'installation des dépendances (requirements.txt)"
 
 
 def indexer(corpus: str, index_dir: str, embedder=None, use_ocr: bool = True, progress_cb=None, log=None):
@@ -66,7 +71,7 @@ def indexer(corpus: str, index_dir: str, embedder=None, use_ocr: bool = True, pr
     que RIVAGE (extraction, découpage, déduplication, embedding via la
     passerelle, FAISS + BM25, publication atomique) : SILLAGE n'en réécrit rien."""
     if not disponible():
-        raise ImportError(MESSAGE_ABSENT)
+        raise ImportError(message_absent())
     import indexer as _indexer
     Path(index_dir).mkdir(parents=True, exist_ok=True)
     return _indexer.index_corpus(str(corpus), str(index_dir), embedder=embedder, use_ocr=use_ocr,
@@ -74,8 +79,10 @@ def indexer(corpus: str, index_dir: str, embedder=None, use_ocr: bool = True, pr
 
 
 def version_rivage() -> str:
+    """Version du moteur (copie embarquée, ou dépôt désigné par SILLAGE_RIVAGE_DIR)."""
     if not disponible():
-        return ""
+        from .moteur import version_rivage as embarquee
+        return embarquee()
     try:
         from version import __version__
         return __version__
@@ -109,7 +116,7 @@ class Moteur:
 
     def __init__(self, index_dir: str, embedder=None, reranker=None, log=None):
         if not disponible():
-            raise ImportError(MESSAGE_ABSENT)
+            raise ImportError(message_absent())
         from retrieval import HybridRetriever
         self.index_dir = index_dir
         self.log = log or logger

@@ -14,9 +14,10 @@ deux révisions de NCM.
 
 Tout le socle est déterministe : deux campagnes sur les mêmes fichiers
 donnent la même grille. Pour vérifier qu'un « conforme » est étayé par la
-spécification du fournisseur, SILLAGE s'appuie sur le moteur de **RIVAGE**
-(index, portée, recherche hybride, reranking) sans en réécrire une ligne.
-Voir `docs/PLAN_SILLAGE.md`.
+spécification du fournisseur, SILLAGE utilise le moteur de **RIVAGE**
+(index, portée, recherche hybride, reranking), **embarqué** dans
+`sillage/moteur/` : SILLAGE est autonome, aucune installation de RIVAGE
+n'est nécessaire sur le poste. Voir `docs/PLAN_SILLAGE.md`.
 
 Auteur, créateur et développeur : Renaud Loison.
 
@@ -25,16 +26,18 @@ Auteur, créateur et développeur : Renaud Loison.
 ```bat
 python -m venv .venv
 .venv\Scripts\python -m pip install -r requirements.txt
-:: moteur de RIVAGE (lot 3) : installé comme dépendance dans le même environnement
-.venv\Scripts\python -m pip install chemin\vers\RIVAGE
 ```
 
-À défaut d'installation, SILLAGE trouve RIVAGE dans le dossier désigné par
-`SILLAGE_RIVAGE_DIR`, ou dans un dossier `RIVAGE` voisin du dépôt. La
-passerelle d'IA se configure comme pour RIVAGE (`RIVAGE.env`,
-`RIVAGE_keys.env`). Sans RIVAGE ni passerelle, les commandes `lire`,
-`grille` (sans `--verifier`), `diff` et `affaiblissements` fonctionnent
-entièrement.
+La passerelle d'IA (embedding, reranking, OCR) se configure comme pour
+RIVAGE, avec les mêmes fichiers posés à côté de SILLAGE : `RIVAGE.env`
+(options) et `RIVAGE_keys.env` (clés, jamais versionné). Les mêmes clés
+servent aux deux outils. Sans passerelle, les commandes `lire`, `grille`
+(sans `--verifier`), `diff` et `affaiblissements` fonctionnent entièrement ;
+`appui` rend des « non vérifié » (recherche lexicale seule).
+
+Le moteur embarqué est une copie de RIVAGE (version et commit dans
+`sillage/moteur/VERSION_RIVAGE.txt`). Pour reprendre une version plus
+récente : `python outils/synchroniser_rivage.py chemin\vers\RIVAGE`.
 
 ## Utilisation
 

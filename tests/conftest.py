@@ -12,6 +12,8 @@ def sillage_home(tmp_path, monkeypatch):
     """Dossier de données isolé : rien n'est écrit dans le profil de l'utilisateur."""
     home = tmp_path / "sillage_home"
     monkeypatch.setenv("SILLAGE_HOME", str(home))
+    # le moteur EMBARQUÉ, jamais un RIVAGE extérieur
+    monkeypatch.delenv("SILLAGE_RIVAGE_DIR", raising=False)
     return home
 
 

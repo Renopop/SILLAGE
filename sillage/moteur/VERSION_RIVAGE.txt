@@ -1,0 +1,3 @@
+RIVAGE 2.7.6
+commit ded0695
+copié le 2026-11-05 depuis /home/user/RIVAGE

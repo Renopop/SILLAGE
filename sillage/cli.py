@@ -104,9 +104,9 @@ def cmd_grille(a) -> int:
 
 
 def cmd_indexer(a) -> int:
-    from .rivage import disponible, indexer, MESSAGE_ABSENT, version_rivage
+    from .rivage import disponible, indexer, message_absent, version_rivage
     if not disponible():
-        print(MESSAGE_ABSENT, file=sys.stderr)
+        print(message_absent(), file=sys.stderr)
         return 1
     index_dir = _index_dir(a)
     print(f"{VERSION_LABEL} — indexation par RIVAGE {version_rivage()} : {a.dossier} → {index_dir}")
@@ -119,9 +119,9 @@ def cmd_indexer(a) -> int:
 
 def cmd_appui(a) -> int:
     from .appui import verifier
-    from .rivage import Moteur, disponible, MESSAGE_ABSENT
+    from .rivage import Moteur, disponible, message_absent
     if not disponible():
-        print(MESSAGE_ABSENT, file=sys.stderr)
+        print(message_absent(), file=sys.stderr)
         return 1
     ncm, ref = _lire(a.ncm, a.spec, a.fournisseur, a.revision, a.sans_profil)
     statuts = [s.strip().upper() for s in (a.statuts or "C").split(",") if s.strip()]

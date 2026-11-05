@@ -7,6 +7,12 @@ build/
 dist/
 *.egg-info/
 .claude/
+# configuration locale et clés : jamais dans le dépôt
+RIVAGE.env
+RIVAGE_keys.env
+SILLAGE.env
+rivage.config.json
+build_info.json
 # données fournisseurs et sorties : jamais dans le dépôt
 *.xlsx
 *.xlsm

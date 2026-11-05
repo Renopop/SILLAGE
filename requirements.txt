@@ -1,6 +1,52 @@
-openpyxl>=3.1
+# =============================================================================
+#  SILLAGE - Dépendances Python
+# =============================================================================
+# Spécifications, Incomplétudes, Livrables : Lecture, Analyse et Grille des Écarts
+#
+# Installation :   pip install -r requirements.txt
+#
+# SILLAGE embarque le moteur de RIVAGE (sillage/moteur/) : ses dépendances
+# sont les mêmes que celles de RIVAGE, reprises ci-dessous.
+# =============================================================================
+
+# --- Socle -------------------------------------------------------------------
+numpy>=1.24             # vecteurs d'embedding, index
+httpx>=0.27             # client HTTP des API internes (passerelle)
+
+# --- Lecture des tableaux et documents (NCM, spécifications) ----------------
+openpyxl>=3.1            # .xlsx / .xlsm
 python-docx>=1.1
 pdfplumber>=0.11
+
+# --- Moteur embarqué : extraction PDF (cascade pdfplumber -> pdfminer -> PyMuPDF)
+pdfminer.six>=20221105
+pymupdf>=1.24            # importé en `pymupdf`/`fitz`
+unidecode>=1.3          # translittération des noms de fichiers
+
+# --- Moteur embarqué : PowerPoint / Excel -----------------------------------
+python-pptx>=0.6.23
+xlrd>=2.0                # .xls (ancien format binaire Excel) via pandas
+pandas>=2.0
+# Conversion .doc -> .docx via Microsoft Word (COM) — Windows uniquement.
+pywin32>=306; sys_platform == "win32"
+
+# --- Moteur embarqué : OCR par LLM Vision -----------------------------------
+psutil>=5.9             # DPI/worker adaptatifs selon la RAM
+
+# --- Moteur embarqué : indexation vectorielle + lexicale ---------------------
+faiss-cpu>=1.8          # index vectoriel FAISS (IndexIDMap)
+
+# --- Composants avec repli intégré (installer pour de meilleures perfs) ------
+langchain-text-splitters>=0.2   # chunking — sinon splitter intégré
+datasketch>=1.6                 # déduplication MinHash/LSH — sinon repli
+rank-bm25>=0.2                  # index lexical BM25 — sinon BM25 intégré
+
+# --- Tests -------------------------------------------------------------------
 pytest>=7.0
-# Lot 3 : le moteur de RIVAGE, installé depuis son dossier (pip install chemin\vers\RIVAGE)
-# ou trouvé par SILLAGE_RIVAGE_DIR / dossier voisin ; ses propres dépendances (faiss-cpu, numpy, httpx…) viennent avec.
+
+# --- Optionnel ---------------------------------------------------------------
+# pyinstaller>=6.0             # exe autonome — installé au besoin par build_exe.bat
+#
+# Le registre incrémental utilise sqlite3, inclus dans la stdlib.
+# L'interface graphique utilise tkinter, inclus dans Python sous Windows
+# (sous Linux : paquet système python3-tk).

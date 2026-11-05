@@ -8,7 +8,7 @@ from conftest import SPEC, ecrire_docx, ecrire_xlsx
 
 from sillage import rivage
 
-pytestmark = pytest.mark.skipif(not rivage.disponible(), reason="RIVAGE introuvable (SILLAGE_RIVAGE_DIR)")
+pytestmark = pytest.mark.skipif(not rivage.disponible(), reason="moteur embarqué inutilisable : " + rivage.erreur())
 
 
 class FakeEmbedder:

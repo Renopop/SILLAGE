@@ -58,7 +58,8 @@ nous : les identifiants sont l'invariant, tout le reste s'y rattache.
 | 3 | Vérification des « C » avec RIVAGE : pour chaque exigence déclarée conforme, le passage de la spécification fournisseur qui l'étaye et son score ; « C » sans appui en tête de revue ; valeurs chiffrées de l'exigence citées ou non ; campagne lexicale des affaiblissements (TBD, TBC, where practicable…) ; indexation des documents du fournisseur par le moteur de RIVAGE | non (scores) | fait (0.2.0) |
 | 4 | Traçabilité vers la norme : pré-remplissage par RIVAGE (exigence → paragraphe), relecture, figement ; liste des NC à impact certification par jointure | non (scores) | à faire |
 | 5 | Fiches de revue pour les NC et PC : exigence, ligne de NCM, passages, résumé de l'écart et du risque — seule étape générative, verdict laissé à l'ingénieur | oui, bornée | à faire |
-| 6 | Interface graphique : ouvrir une spec et des NCM, voir la grille, confirmer un profil, enrichir les statuts, exporter | non | à faire |
+| 3 ter | Moteur de RIVAGE embarqué (copie, synchronisation, sonde) : SILLAGE autonome | non | fait (0.3.0) |
+| 6 | Interface graphique propre à SILLAGE (Tkinter) : projet (spécification, fournisseur, NCM, documents), lecture et diagnostic, confirmation de profil, enrichissement des statuts, indexation, vérification, affaiblissements, diff, grille à l'écran filtrable avec volet de détail, exports ; puis `launch.bat`, `install.bat`, `build_exe.bat`, `SILLAGE.spec` | non | à faire (0.4.0) |
 | 7 | Capitalisation : une base par projet, questions transverses entre projets (exigences souvent contestées, écarts déjà acceptés) | non | à faire |
 
 Les lots 1 et 2 forment déjà un outil utile et entièrement déterministe ;
@@ -131,10 +132,10 @@ alertes, une feuille de résumé. Couleurs par statut, filtres, volets figés.
 
 ## 5 bis. Lot 3 — vérification des « conformes » et affaiblissements
 
-**SILLAGE est un client de RIVAGE.** Rien de ce qui lit du texte par le
-sens n'est réécrit : `sillage/rivage.py` localise les modules de RIVAGE
-(installés comme dépendance, ou désignés par `SILLAGE_RIVAGE_DIR`, ou dans un
-dossier voisin) et appelle `HybridRetriever` (portée par chemins, recherche
+**SILLAGE embarque le moteur de RIVAGE.** Rien de ce qui lit du texte par
+le sens n'est réécrit : les modules de RIVAGE qui font l'indexation et la
+recherche sont copiés tels quels dans `sillage/moteur/` (voir § 5 ter) et
+`sillage/rivage.py` appelle `HybridRetriever` (portée par chemins, recherche
 hybride, reranking) et l'indexeur (`index_corpus`).
 
 **Index des documents du fournisseur** : `sillage indexer <dossier>` publie
@@ -168,12 +169,41 @@ absentes, affaiblissements) et quatre alertes (`c_sans_appui`, `c_faible`,
 JSON (`appui --json`) et se rejoue dans la grille (`grille --appuis`) sans
 nouvel appel à la passerelle.
 
-**Autonomie.** SILLAGE n'exige pas que RIVAGE soit installé ni lancé par
-l'utilisateur : RIVAGE est une dépendance Python embarquée (et, plus tard,
-emballée dans l'exécutable). Ce qui reste nécessaire est la passerelle d'IA
-(embedding, reranking), avec les mêmes clés et le même `RIVAGE.env` que
-RIVAGE. Sans passerelle, SILLAGE reste utilisable : lots 1 et 2 complets,
-appuis en lexical seul (« non vérifié »), affaiblissements complets.
+## 5 ter. Le moteur embarqué (0.3.0) — SILLAGE autonome
+
+SILLAGE ne dépend d'aucune installation de RIVAGE sur le poste.
+
+- `sillage/moteur/` contient une **copie** des 23 modules de RIVAGE qui font
+  l'indexation et la recherche (extraction et ses lecteurs, découpage,
+  déduplication, embeddings, index vectoriel et lexical, registre, stockage,
+  indexeur, retrieval, cache lecteur, synthèse, clients de la passerelle,
+  configuration, diagnostic, sonde de plateforme) et le hook PyInstaller.
+  Les fichiers sont copiés **tels quels** : mêmes noms, imports plats
+  inchangés, aucun risque de casser le moteur en le réécrivant.
+- `VERSION_RIVAGE.txt` note la version et le commit de RIVAGE copiés ;
+  `outils/synchroniser_rivage.py chemin/vers/RIVAGE` reprend une version
+  plus récente en une commande (seuls les fichiers changés sont recopiés ;
+  `rivage_app.py` et `__init__.py` sont propres à SILLAGE et conservés).
+- `sillage/moteur/__init__.py` (`activer`) ajoute le dossier au chemin
+  Python, désigne au moteur les `RIVAGE.env` / `RIVAGE_keys.env` du dossier
+  de SILLAGE (exécutable ou racine du dépôt) et applique la sonde de
+  plateforme avant le premier import de faiss.
+- Le processus fils de la sonde (postes anciens) est servi par
+  `sillage/moteur/rivage_app.py` en script et par `python -m sillage
+  --sonde-plateforme` en exécutable, exactement comme dans RIVAGE.
+- Ce qui n'est **pas** copié : les interfaces de RIVAGE, la base de
+  recherche auto-RAG, l'historique, le panier, le lanceur.
+- `SILLAGE_RIVAGE_DIR` ne sert plus qu'au développement : essayer un dépôt
+  RIVAGE plus récent avant de le synchroniser.
+
+Ce qui reste externe, par nature : la passerelle d'IA (embedding, reranking,
+OCR), avec les mêmes clés et le même `RIVAGE.env` que RIVAGE. Sans
+passerelle, SILLAGE reste utilisable : lots 1 et 2 complets, appuis en
+lexical seul (« non vérifié »), affaiblissements complets.
+
+Les miroirs locaux et le journal de plantage du moteur vivent dans
+`%LOCALAPPDATA%\rivage_cache`, partagés avec RIVAGE s'il est aussi installé
+(même index, même miroir).
 
 ## 6. Conventions
 

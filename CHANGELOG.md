@@ -2,6 +2,33 @@
 
 Numérotation MAJEUR.MINEUR.CORRECTIF ; version dans `sillage/version.py`.
 
+## 0.3.0 — 2026-11-05 (moteur de RIVAGE embarqué : SILLAGE autonome)
+
+- `sillage/moteur/` : copie embarquée des 23 modules de RIVAGE 2.7.6
+  (commit ded0695) qui font l'indexation et la recherche — extraction,
+  découpage, déduplication, embeddings, index vectoriel et lexical,
+  registre, stockage, indexeur, retrieval, cache lecteur, synthèse, clients
+  de la passerelle, diagnostic, sonde de plateforme — plus le hook
+  PyInstaller `hooks/rth_plateforme.py`. Fichiers copiés tels quels (imports
+  plats inchangés) ; `VERSION_RIVAGE.txt` note la version et le commit.
+- `outils/synchroniser_rivage.py chemin/vers/RIVAGE` : reprend une version
+  plus récente de RIVAGE en une commande (copie seulement ce qui a changé).
+- `sillage/moteur/__init__.py` (`activer`) : rend le moteur importable,
+  désigne au moteur les `RIVAGE.env` / `RIVAGE_keys.env` du dossier de
+  SILLAGE (exécutable ou racine du dépôt) et applique la sonde de plateforme
+  avant le premier import de faiss, comme le lanceur de RIVAGE.
+- `sillage/moteur/rivage_app.py` (propre à SILLAGE) et `python -m sillage
+  --sonde-plateforme` : processus fils de la sonde, en script et en exécutable.
+- `rivage.py` : le pont utilise la copie embarquée ; `SILLAGE_RIVAGE_DIR` ne
+  sert plus qu'au développement (essai d'un RIVAGE plus récent) ; message
+  d'erreur explicite si une dépendance du moteur manque (faiss, numpy…).
+- Dépendances : celles de RIVAGE reprises dans `requirements.txt` et
+  `pyproject.toml` ; `.gitignore` exclut `RIVAGE.env`, `RIVAGE_keys.env`,
+  `rivage.config.json`, `build_info.json`.
+- Tests : copie complète, localisation embarquée, import de tous les
+  modules, fichiers d'options du dossier de SILLAGE, sonde fils ; toute la
+  suite tourne sans RIVAGE extérieur (43 tests).
+
 ## 0.2.0 — 2026-11-05 (lot 3 : vérification des « conformes » avec RIVAGE)
 
 - Pont vers RIVAGE (`rivage.py`) : localisation des modules (dépendance

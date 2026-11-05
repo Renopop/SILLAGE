@@ -21,6 +21,7 @@ from .identifiants import MotifIdentifiant, deduire_motif, trier
 from .modele import Exigence
 from .profils import normaliser_en_tete
 from .tableaux import lire_tableaux
+from .textes import Para, paragraphes_docx, paragraphes_pdf, paragraphes_texte
 
 _MOTS_NORME = ("norme", "standard", "cs 25", "cs25", "cs-25", "far", "part 25", "trace", "tracab", "regulation",
                "reglement", "règlement", "exigence source", "source requirement", "applicable")
@@ -50,11 +51,11 @@ def lire_referentiel(chemin, motif: Optional[MotifIdentifiant] = None) -> Refere
     if ext in (".xlsx", ".xlsm", ".csv", ".tsv"):
         exigences = _depuis_tableur(p, motif or MotifIdentifiant())
     elif ext == ".docx":
-        exigences = _depuis_paragraphes(p, _paragraphes_docx(p), motif or MotifIdentifiant())
+        exigences = _depuis_paragraphes(p, paragraphes_docx(p), motif or MotifIdentifiant())
     elif ext in (".txt", ".md"):
-        exigences = _depuis_paragraphes(p, _paragraphes_texte(p), motif or MotifIdentifiant())
+        exigences = _depuis_paragraphes(p, paragraphes_texte(p), motif or MotifIdentifiant())
     elif ext == ".pdf":
-        exigences = _depuis_paragraphes(p, _paragraphes_pdf(p), motif or MotifIdentifiant())
+        exigences = _depuis_paragraphes(p, paragraphes_pdf(p), motif or MotifIdentifiant())
     else:
         raise ValueError(f"format de référentiel non pris en charge : {ext or '(sans extension)'}")
     exigences = _dedoublonner(exigences)
@@ -120,63 +121,7 @@ def _depuis_tableur(p: Path, motif: MotifIdentifiant) -> List[Exigence]:
 
 
 # --- documents -------------------------------------------------------------------
-@dataclass
-class _Para:
-    texte: str
-    reference: str = ""
-    titre: bool = False
-
-
-def _paragraphes_docx(p: Path) -> List[_Para]:
-    import docx
-    doc = docx.Document(str(p))
-    out = []
-    for i, para in enumerate(doc.paragraphs, start=1):
-        txt = para.text.strip()
-        if not txt:
-            continue
-        style = (para.style.name if para.style is not None else "") or ""
-        titre = style.lower().startswith(("heading", "titre", "title"))
-        out.append(_Para(txt, f"paragraphe {i}", titre))
-    # les tableaux d'un document (exigences tabulées dans un Word)
-    for k, table in enumerate(doc.tables, start=1):
-        for r, row in enumerate(table.rows, start=1):
-            cellules, prev = [], None
-            for cell in row.cells:
-                if prev is not None and cell._tc is prev:
-                    continue
-                prev = cell._tc
-                cellules.append(cell.text.strip())
-            txt = " — ".join(c for c in cellules if c)
-            if txt:
-                out.append(_Para(txt, f"table {k}, ligne {r}"))
-    return out
-
-
-def _paragraphes_texte(p: Path) -> List[_Para]:
-    data = p.read_text(encoding="utf-8-sig", errors="replace")
-    out = []
-    for i, bloc in enumerate(re.split(r"\n\s*\n", data), start=1):
-        txt = " ".join(x.strip() for x in bloc.splitlines() if x.strip())
-        if txt:
-            out.append(_Para(txt, f"bloc {i}", titre=txt.startswith("#")))
-    return out
-
-
-def _paragraphes_pdf(p: Path) -> List[_Para]:
-    import pdfplumber
-    out = []
-    with pdfplumber.open(str(p)) as pdf:
-        for n, page in enumerate(pdf.pages, start=1):
-            texte = page.extract_text() or ""
-            for i, bloc in enumerate(re.split(r"\n\s*\n", texte), start=1):
-                lignes = [x.strip() for x in bloc.splitlines() if x.strip()]
-                if lignes:
-                    out.append(_Para(" ".join(lignes), f"page {n}"))
-    return out
-
-
-def _depuis_paragraphes(p: Path, paras: Iterable[_Para], motif: MotifIdentifiant) -> List[Exigence]:
+def _depuis_paragraphes(p: Path, paras: Iterable[Para], motif: MotifIdentifiant) -> List[Exigence]:
     out: List[Exigence] = []
     courante: Optional[Exigence] = None
     for para in paras:

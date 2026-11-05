@@ -2,3 +2,5 @@ openpyxl>=3.1
 python-docx>=1.1
 pdfplumber>=0.11
 pytest>=7.0
+# Lot 3 : le moteur de RIVAGE, installé depuis son dossier (pip install chemin\vers\RIVAGE)
+# ou trouvé par SILLAGE_RIVAGE_DIR / dossier voisin ; ses propres dépendances (faiss-cpu, numpy, httpx…) viennent avec.

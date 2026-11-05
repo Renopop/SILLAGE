@@ -55,7 +55,7 @@ nous : les identifiants sont l'invariant, tout le reste s'y rattache.
 | 0 | Squelette : dépôt, version, modèle pivot, configuration, tests | non | fait (0.1.0) |
 | 1 | Lecture des NCM : tableaux xlsx / docx / pdf / csv, repérage des identifiants (plages, sous-identifiants), reconnaissance des colonnes par contenu, dictionnaire des statuts, profil fournisseur, diagnostic d'exploitabilité, NCM normalisée (JSON) | non | fait (0.1.0) |
 | 2 | Référentiel et contrôles : lecture de la spécification (tableur ou document), trous, orphelins, doublons, incohérences, diff entre révisions, clôture des écarts, **grille des écarts** (xlsx) et ligne de commande | non | fait (0.1.0) |
-| 3 | Vérification des « C » avec RIVAGE : pour chaque exigence déclarée conforme, le passage de la spécification fournisseur qui l'étaye et son score ; « C » sans appui en tête de revue ; campagne lexicale des affaiblissements (TBD, TBC, where practicable…) | non (scores) | à faire |
+| 3 | Vérification des « C » avec RIVAGE : pour chaque exigence déclarée conforme, le passage de la spécification fournisseur qui l'étaye et son score ; « C » sans appui en tête de revue ; valeurs chiffrées de l'exigence citées ou non ; campagne lexicale des affaiblissements (TBD, TBC, where practicable…) ; indexation des documents du fournisseur par le moteur de RIVAGE | non (scores) | fait (0.2.0) |
 | 4 | Traçabilité vers la norme : pré-remplissage par RIVAGE (exigence → paragraphe), relecture, figement ; liste des NC à impact certification par jointure | non (scores) | à faire |
 | 5 | Fiches de revue pour les NC et PC : exigence, ligne de NCM, passages, résumé de l'écart et du risque — seule étape générative, verdict laissé à l'ingénieur | oui, bornée | à faire |
 | 6 | Interface graphique : ouvrir une spec et des NCM, voir la grille, confirmer un profil, enrichir les statuts, exporter | non | à faire |
@@ -128,6 +128,52 @@ le sens : amélioration ou régression), justification réécrite.
 texte, statut effectif, statut brut, justification, clôture, action, échéance,
 référence, dérogation, chemin, origine, alertes, norme), une feuille des
 alertes, une feuille de résumé. Couleurs par statut, filtres, volets figés.
+
+## 5 bis. Lot 3 — vérification des « conformes » et affaiblissements
+
+**SILLAGE est un client de RIVAGE.** Rien de ce qui lit du texte par le
+sens n'est réécrit : `sillage/rivage.py` localise les modules de RIVAGE
+(installés comme dépendance, ou désignés par `SILLAGE_RIVAGE_DIR`, ou dans un
+dossier voisin) et appelle `HybridRetriever` (portée par chemins, recherche
+hybride, reranking) et l'indexeur (`index_corpus`).
+
+**Index des documents du fournisseur** : `sillage indexer <dossier>` publie
+un index RIVAGE propre à SILLAGE (dossier de données, un par fournisseur), avec
+le pipeline complet de RIVAGE. Un index RIVAGE existant (le partage) convient
+aussi (`--index`), avec `--dossier` pour restreindre la portée au fournisseur.
+
+**Appui** : pour chaque exigence dont le statut NCM est « C » (ou ceux de
+`--statuts`), la question RIVAGE est le texte de l'exigence, posée dans la
+portée du fournisseur. Un embedding, une recherche hybride, un reranking par
+exigence, jamais de synthèse. Le score de reranking du meilleur passage
+classe l'appui : *étayé* (≥ seuil haut), *faible*, *absent*, ou *non vérifié*
+(pas de reranking disponible : ordre RRF seul). Les seuils (0,5 / 0,25 par
+défaut) sont à **calibrer** sur un échantillon connu ; la campagne affiche la
+distribution des scores (quartiles) pour aider.
+
+**Valeurs chiffrées** : les nombres de l'exigence (« 2 kg », « -40 °C »,
+« 28 V ») sont cherchés dans le passage d'appui ; absents, l'exigence est
+signalée (« 2 kg » exigés, « 2,5 kg » annoncés : à lire). Numéros de section
+et nombres d'identifiants (« T-12 ») sont ignorés.
+
+**Affaiblissements** : campagne lexicale, sans RIVAGE, sur les documents du
+fournisseur : TBD, TBC, where practicable, best effort, sous réserve, dans la
+mesure du possible, except, not covered… Chaque occurrence est rattachée aux
+identifiants cités dans son paragraphe ; les expressions courantes (« may »,
+« should », « sauf »…) ne sont retenues qu'à côté d'un identifiant.
+
+**Grille** : six colonnes de plus (appui, score, passage, document, valeurs
+absentes, affaiblissements) et quatre alertes (`c_sans_appui`, `c_faible`,
+`valeurs_absentes`, `affaiblissement`). Une campagne d'appuis s'enregistre en
+JSON (`appui --json`) et se rejoue dans la grille (`grille --appuis`) sans
+nouvel appel à la passerelle.
+
+**Autonomie.** SILLAGE n'exige pas que RIVAGE soit installé ni lancé par
+l'utilisateur : RIVAGE est une dépendance Python embarquée (et, plus tard,
+emballée dans l'exécutable). Ce qui reste nécessaire est la passerelle d'IA
+(embedding, reranking), avec les mêmes clés et le même `RIVAGE.env` que
+RIVAGE. Sans passerelle, SILLAGE reste utilisable : lots 1 et 2 complets,
+appuis en lexical seul (« non vérifié »), affaiblissements complets.
 
 ## 6. Conventions
 

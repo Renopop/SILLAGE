@@ -26,3 +26,10 @@ def fichier_statuts() -> Path:
 
 def dossier_profils() -> Path:
     return dossier_donnees() / "profils"
+
+
+def dossier_index(fournisseur: str = "") -> Path:
+    """Index RIVAGE des documents d'un fournisseur, propre à SILLAGE (local)."""
+    from .profils import nom_fichier_profil
+    nom = nom_fichier_profil(fournisseur)[:-5] if fournisseur else "defaut"
+    return dossier_donnees() / "index" / nom

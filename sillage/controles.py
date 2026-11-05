@@ -9,6 +9,7 @@ grille.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Dict, List, Optional
 
 from .identifiants import trier
@@ -22,6 +23,11 @@ DOUBLON = "doublon"             # plusieurs lignes, même statut
 INCOHERENCE = "incoherence"     # plusieurs lignes, statuts différents
 STATUT_INCONNU = "statut_inconnu"
 ECART_OUVERT = "ecart_ouvert"   # NC ou PC sans action ni dérogation
+# lot 3
+C_SANS_APPUI = "c_sans_appui"           # « conforme » sans passage comparable dans la spécification fournisseur
+C_FAIBLE = "c_faible"                   # « conforme » avec un appui de score faible
+VALEURS_ABSENTES = "valeurs_absentes"   # exigence chiffrée dont aucune valeur n'est citée par les passages
+AFFAIBLISSEMENT = "affaiblissement"     # expression d'affaiblissement à côté de l'identifiant
 
 # clôture d'un écart
 CLOTURE_DEROGATION = "dérogation"
@@ -52,6 +58,13 @@ class LigneGrille:
     alertes: List[str] = field(default_factory=list)
     dans_referentiel: bool = True
     nb_lignes_ncm: int = 0
+    # lot 3 : appui dans la spécification fournisseur (RIVAGE) et affaiblissements (lexical)
+    appui_niveau: str = ""
+    appui_score: Optional[float] = None
+    appui_passage: str = ""
+    appui_document: str = ""
+    valeurs_absentes: List[str] = field(default_factory=list)
+    affaiblissements: List[str] = field(default_factory=list)
 
 
 @dataclass
@@ -67,7 +80,8 @@ class Grille:
         r: Dict[str, int] = {"exigences": sum(1 for l in self.lignes if l.dans_referentiel)}
         for s in Statut:
             r[s.value] = sum(1 for l in self.lignes if l.dans_referentiel and l.statut is s)
-        for t in (TROU, ORPHELIN, DOUBLON, INCOHERENCE, STATUT_INCONNU, ECART_OUVERT):
+        for t in (TROU, ORPHELIN, DOUBLON, INCOHERENCE, STATUT_INCONNU, ECART_OUVERT,
+                  C_SANS_APPUI, C_FAIBLE, VALEURS_ABSENTES, AFFAIBLISSEMENT):
             r[t] = sum(1 for a in self.alertes if a.type == t)
         r["ecarts"] = sum(1 for l in self.lignes if l.dans_referentiel and l.statut in (Statut.PARTIEL, Statut.NON_CONFORME))
         r["couverts"] = r["exigences"] - r[TROU]
@@ -83,6 +97,11 @@ class Grille:
             f"Trous : {r[TROU]}, orphelins : {r[ORPHELIN]}, doublons : {r[DOUBLON]}, "
             f"incohérences : {r[INCOHERENCE]}, écarts ouverts : {r[ECART_OUVERT]}",
         ]
+        if any(l.appui_niveau for l in self.lignes):
+            lignes.append(f"« Conformes » sans appui : {r[C_SANS_APPUI]}, appui faible : {r[C_FAIBLE]}, "
+                          f"valeurs chiffrées absentes : {r[VALEURS_ABSENTES]}")
+        if r[AFFAIBLISSEMENT]:
+            lignes.append(f"Exigences avec affaiblissement à proximité : {r[AFFAIBLISSEMENT]}")
         return "\n".join(lignes)
 
 
@@ -96,10 +115,14 @@ def cloture_de(ligne: LigneNCM) -> str:
     return CLOTURE_OUVERT
 
 
-def controler(ref: Referentiel, ncm: NCM) -> Grille:
+def controler(ref: Referentiel, ncm: NCM, campagne=None, releve=None) -> Grille:
+    """Grille des écarts. `campagne` (appui.Campagne) et `releve`
+    (affaiblissements.Releve) sont les résultats optionnels du lot 3."""
     g = Grille(fournisseur=ncm.fournisseur, revision=ncm.revision, referentiel=ref.source, ncm=ncm.fichier)
     par_id = ncm.par_id()
     exigences = ref.par_id()
+    appuis = campagne.appuis if campagne is not None else {}
+    affaibl = releve.par_id() if releve is not None else {}
 
     for ident in ref.ids:
         e = exigences[ident]
@@ -111,6 +134,13 @@ def controler(ref: Referentiel, ncm: NCM) -> Grille:
             g.alertes.append(Alerte(TROU, ident, "exigence sans ligne dans la NCM"))
         else:
             _remplir(lg, lignes, g)
+        if ident in appuis:
+            _remplir_appui(lg, appuis[ident], g)
+        if ident in affaibl:
+            lg.affaiblissements = sorted({o.expression for o in affaibl[ident]})
+            lg.alertes.append(AFFAIBLISSEMENT)
+            g.alertes.append(Alerte(AFFAIBLISSEMENT, ident, "près de l'identifiant : " + ", ".join(f"« {x} »" for x in lg.affaiblissements),
+                                    "; ".join(dict.fromkeys(f"{Path(o.fichier).name}, {o.reference}" for o in affaibl[ident]))))
         g.lignes.append(lg)
 
     for ident in trier([i for i in par_id if i not in exigences]):
@@ -121,6 +151,30 @@ def controler(ref: Referentiel, ncm: NCM) -> Grille:
         g.alertes.append(Alerte(ORPHELIN, ident, "identifiant absent du référentiel", str(lignes[0].origine or "")))
         g.lignes.append(lg)
     return g
+
+
+def _remplir_appui(lg: LigneGrille, a, g: Grille) -> None:
+    from .appui import ABSENT, FAIBLE
+    lg.appui_niveau = a.niveau
+    lg.appui_score = a.score
+    if a.meilleur is not None:
+        lg.appui_passage = a.meilleur.texte
+        lg.appui_document = Path(a.meilleur.chemin).name + (f", page {a.meilleur.page}" if a.meilleur.page else "")
+    lg.valeurs_absentes = list(a.valeurs_absentes)
+    if a.erreur:
+        return
+    if lg.statut is Statut.CONFORME:
+        if a.niveau == ABSENT:
+            lg.alertes.append(C_SANS_APPUI)
+            g.alertes.append(Alerte(C_SANS_APPUI, lg.id, "déclaré conforme, aucun passage comparable dans la spécification fournisseur",
+                                    lg.appui_document))
+        elif a.niveau == FAIBLE:
+            lg.alertes.append(C_FAIBLE)
+            g.alertes.append(Alerte(C_FAIBLE, lg.id, f"déclaré conforme, appui de score faible ({a.score:.2f})", lg.appui_document))
+    if a.valeurs_absentes and a.niveau != ABSENT:
+        lg.alertes.append(VALEURS_ABSENTES)
+        g.alertes.append(Alerte(VALEURS_ABSENTES, lg.id, "valeurs de l'exigence non citées par les passages : " +
+                                ", ".join(a.valeurs_absentes), lg.appui_document))
 
 
 def _remplir(lg: LigneGrille, lignes: List[LigneNCM], g: Grille) -> None:

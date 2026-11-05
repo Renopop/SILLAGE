@@ -23,12 +23,15 @@ COULEURS = {
 _EN_TETE_FILL = PatternFill("solid", fgColor="0B4F6C")
 _EN_TETE_FONT = Font(bold=True, color="FFFFFF")
 _ALERTE_FILL = PatternFill("solid", fgColor="F8CBAD")
+_COULEURS_APPUI = {"étayé": "C6EFCE", "faible": "FFEB9C", "absent": "FFC7CE", "non vérifié": "E7E6E6"}
 
 COLONNES = [
     ("Identifiant", 14), ("Exigence", 60), ("Statut", 9), ("Libellé", 22), ("Statut brut", 16),
     ("Justification", 60), ("Clôture", 12), ("Action", 30), ("Échéance", 12), ("Référence", 18),
     ("Dérogation", 16), ("Commentaire", 30), ("Norme", 14), ("Alertes", 24), ("Chemin", 9),
     ("Origine", 34), ("Lignes NCM", 10),
+    ("Appui", 11), ("Score", 8), ("Passage d'appui", 60), ("Document d'appui", 30), ("Valeurs absentes", 18),
+    ("Affaiblissements", 24),
 ]
 
 
@@ -56,12 +59,16 @@ def exporter_grille(grille: Grille, chemin) -> Path:
             lg.champs.get("action", ""), lg.champs.get("echeance", ""), lg.champs.get("reference", ""),
             lg.champs.get("derogation", ""), lg.champs.get("commentaire", ""), lg.norme,
             ", ".join(lg.alertes), lg.chemin, lg.origine, lg.nb_lignes_ncm,
+            lg.appui_niveau, round(lg.appui_score, 3) if lg.appui_score is not None else "",
+            lg.appui_passage, lg.appui_document, ", ".join(lg.valeurs_absentes), ", ".join(lg.affaiblissements),
         ])
         r = ws.max_row
         ws.cell(r, 3).fill = PatternFill("solid", fgColor=COULEURS[lg.statut])
         if lg.alertes:
             ws.cell(r, 14).fill = _ALERTE_FILL
-        for c in (2, 6, 8):
+        if lg.appui_niveau:
+            ws.cell(r, 18).fill = PatternFill("solid", fgColor=_COULEURS_APPUI.get(lg.appui_niveau, "FFFFFF"))
+        for c in (2, 6, 8, 20):
             ws.cell(r, c).alignment = Alignment(wrap_text=True, vertical="top")
     ws.auto_filter.ref = ws.dimensions
 

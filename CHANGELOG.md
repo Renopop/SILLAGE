@@ -2,6 +2,30 @@
 
 Numérotation MAJEUR.MINEUR.CORRECTIF ; version dans `sillage/version.py`.
 
+## 0.2.0 — 2026-11-05 (lot 3 : vérification des « conformes » avec RIVAGE)
+
+- Pont vers RIVAGE (`rivage.py`) : localisation des modules (dépendance
+  installée, `SILLAGE_RIVAGE_DIR`, dossier voisin), `Moteur` (un retriever
+  RIVAGE pour toute une campagne : portée par préfixes de chemins ou
+  fichiers, recherche hybride, reranking), `indexer` (l'indexeur de RIVAGE
+  sur les documents d'un fournisseur, dans un index propre à SILLAGE).
+- Appuis (`appui.py`) : une question RIVAGE par exigence déclarée « C »
+  (ou `--statuts`), niveau étayé / faible / absent / non vérifié selon le
+  score de reranking, valeurs chiffrées de l'exigence cherchées dans le
+  passage d'appui, campagne enregistrable en JSON et rejouable.
+- Affaiblissements (`affaiblissements.py`) : campagne lexicale (TBD, TBC,
+  where practicable, best effort, sous réserve…) rattachée aux identifiants
+  cités dans le paragraphe.
+- Lecture en paragraphes partagée (`textes.py`) : docx, txt, md, pdf, tableurs.
+- Grille : colonnes appui, score, passage, document, valeurs absentes,
+  affaiblissements ; alertes `c_sans_appui`, `c_faible`, `valeurs_absentes`,
+  `affaiblissement`.
+- Ligne de commande : `indexer`, `appui`, `affaiblissements` ; `grille
+  --verifier`, `--appuis`, `--affaiblissements`, `--index`, `--dossier`,
+  `--documents`, `--statuts`, `--seuil-etaye`, `--seuil-faible`.
+- Tests du lot 3 avec le moteur de RIVAGE hors ligne (faux embedder, faux
+  reranker), ignorés si RIVAGE est introuvable.
+
 ## 0.1.0 — 2026-11-05 (lots 0, 1 et 2 : socle déterministe)
 
 - Modèle pivot (`modele.py`) : exigence, ligne de NCM (identifiant, statut

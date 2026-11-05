@@ -13,9 +13,10 @@ inconnus, doublons, incohérences, statuts non reconnus). Il compare aussi
 deux révisions de NCM.
 
 Tout le socle est déterministe : deux campagnes sur les mêmes fichiers
-donnent la même grille. Les lots suivants (vérification des « conformes »
-contre la spécification fournisseur, traçabilité vers la norme, fiches de
-revue) s'appuieront sur RIVAGE. Voir `docs/PLAN_SILLAGE.md`.
+donnent la même grille. Pour vérifier qu'un « conforme » est étayé par la
+spécification du fournisseur, SILLAGE s'appuie sur le moteur de **RIVAGE**
+(index, portée, recherche hybride, reranking) sans en réécrire une ligne.
+Voir `docs/PLAN_SILLAGE.md`.
 
 Auteur, créateur et développeur : Renaud Loison.
 
@@ -24,7 +25,16 @@ Auteur, créateur et développeur : Renaud Loison.
 ```bat
 python -m venv .venv
 .venv\Scripts\python -m pip install -r requirements.txt
+:: moteur de RIVAGE (lot 3) : installé comme dépendance dans le même environnement
+.venv\Scripts\python -m pip install chemin\vers\RIVAGE
 ```
+
+À défaut d'installation, SILLAGE trouve RIVAGE dans le dossier désigné par
+`SILLAGE_RIVAGE_DIR`, ou dans un dossier `RIVAGE` voisin du dépôt. La
+passerelle d'IA se configure comme pour RIVAGE (`RIVAGE.env`,
+`RIVAGE_keys.env`). Sans RIVAGE ni passerelle, les commandes `lire`,
+`grille` (sans `--verifier`), `diff` et `affaiblissements` fonctionnent
+entièrement.
 
 ## Utilisation
 
@@ -43,7 +53,25 @@ python -m sillage statuts --ajouter "Full compliance=C" --ajouter "Deviation req
 
 :: proposer puis enregistrer le profil d'un fournisseur
 python -m sillage profils --proposer NCM_fournisseur_revB.xlsx --fournisseur "Fournisseur A" --spec SPEC_exigences.xlsx --enregistrer
+
+:: lot 3 — indexer les documents du fournisseur (moteur de RIVAGE), puis vérifier que les « C » sont étayés
+python -m sillage indexer D:\Fournisseurs\A\Documents --fournisseur "Fournisseur A"
+python -m sillage appui --spec SPEC_exigences.xlsx --ncm NCM_fournisseur_revB.xlsx --fournisseur "Fournisseur A" --json appuis_revB.json
+
+:: grille complète : contrôles, appuis rejoués depuis le JSON, affaiblissements dans la spécification fournisseur
+python -m sillage grille --spec SPEC_exigences.xlsx --ncm NCM_fournisseur_revB.xlsx --fournisseur "Fournisseur A" ^
+    --appuis appuis_revB.json --affaiblissements D:\Fournisseurs\A\Documents\Spec_fournisseur.docx --sortie grille_revB.xlsx
+
+:: ou tout en une fois (--verifier interroge RIVAGE ; --index et --dossier pour un index RIVAGE existant)
+python -m sillage grille --spec SPEC_exigences.xlsx --ncm NCM_fournisseur_revB.xlsx --fournisseur "Fournisseur A" --verifier
+
+:: expressions d'affaiblissement (TBD, TBC, where practicable, sous réserve…) rattachées aux exigences
+python -m sillage affaiblissements D:\Fournisseurs\A\Documents\Spec_fournisseur.docx --spec SPEC_exigences.xlsx
 ```
+
+Les seuils d'appui (`--seuil-etaye 0.5 --seuil-faible 0.25`) dépendent du
+reranker servi par la passerelle : à calibrer sur quelques exigences dont on
+connaît la réponse, en s'aidant de la distribution des scores affichée.
 
 Le référentiel (`--spec`) est la spécification : un tableur avec une colonne
 d'identifiants (et, si possible, le texte de l'exigence et le paragraphe de

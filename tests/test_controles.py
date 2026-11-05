@@ -1,6 +1,6 @@
 from conftest import NCM_A, SPEC, ecrire_xlsx
 
-from sillage.controles import (DOUBLON, ECART_OUVERT, INCOHERENCE, ORPHELIN, STATUT_INCONNU, TROU,
+from sillage.controles import (DOUBLON, ECART_OUVERT, IMPACT_NORME, INCOHERENCE, ORPHELIN, STATUT_INCONNU, TROU,
                                CLOTURE_ACTION, CLOTURE_DEROGATION, CLOTURE_OUVERT, comparer, controler)
 from sillage.lecture_ncm import lire_ncm
 from sillage.modele import Statut
@@ -48,12 +48,14 @@ def test_doublons_incoherences_inconnus(tmp_path):
     assert par["REQ-1"].statut is Statut.CONFORME and par["REQ-1"].alertes == [DOUBLON]
     assert par["REQ-1"].justification == "a\nb" and par["REQ-1"].nb_lignes_ncm == 2
     assert par["REQ-2"].statut is Statut.INCONNU and par["REQ-2"].alertes == [INCOHERENCE]
-    assert par["REQ-3"].alertes == [STATUT_INCONNU] and par["REQ-3"].statut_brut == "Peut-être"
-    assert par["REQ-4"].cloture == CLOTURE_OUVERT and par["REQ-4"].alertes == [ECART_OUVERT]
-    assert par["REQ-5"].cloture == CLOTURE_ACTION and par["REQ-5"].alertes == []
+    # REQ-3 et REQ-4 sont tracées vers la norme dans SPEC : l'écart porte aussi l'alerte « impact norme »
+    assert par["REQ-3"].alertes == [STATUT_INCONNU, IMPACT_NORME] and par["REQ-3"].statut_brut == "Peut-être"
+    assert par["REQ-4"].cloture == CLOTURE_OUVERT and par["REQ-4"].alertes == [ECART_OUVERT, IMPACT_NORME]
+    assert par["REQ-5"].cloture == CLOTURE_ACTION and par["REQ-5"].alertes == [IMPACT_NORME]   # PC tracée CS 25.1309
     assert par["REQ-6"].statut is Statut.NON_APPLICABLE and par["REQ-6"].cloture == ""
     types = sorted(a.type for a in g.alertes)
-    assert types == sorted([DOUBLON, INCOHERENCE, STATUT_INCONNU, ECART_OUVERT])
+    assert types == sorted([DOUBLON, INCOHERENCE, STATUT_INCONNU, ECART_OUVERT, IMPACT_NORME, IMPACT_NORME, IMPACT_NORME])
+    assert [l.id for l in g.impacts_norme()] == ["REQ-3", "REQ-4", "REQ-5"]
 
 
 def test_diff_revisions(tmp_path):

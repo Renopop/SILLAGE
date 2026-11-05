@@ -103,6 +103,19 @@ SCENARIO = textwrap.dedent('''
     app.confirmer_profil()
     from sillage.profils import Profil
     assert Profil.charger("A").colonnes["statut"] == "Compliance"
+    # lot 4 : traçabilité chargée depuis un JSON → alerte impact norme sur REQ-4 (NC, tracée CS 25.1309)
+    from sillage.norme import Tracabilite, Trace
+    t = Tracabilite(); t.traces["REQ-4"] = Trace("REQ-4", "CS 25.1309", True, origine="relue")
+    tj = os.path.join(tmp, "trac.json"); t.enregistrer(tj)
+    filedialog.askopenfilename = lambda *a, **k: tj
+    app.charger_tracabilite()
+    item = [i for i in app.tree.get_children() if app.tree.item(i, "text") == "REQ-4"][0]
+    assert "impact_norme" in app.tree.item(item, "values")[3], app.tree.item(item, "values")
+    app.v_alerte_filtre.set("impact norme (écart sur exigence tracée)"); app._rafraichir_grille()
+    assert len(app.tree.get_children()) == 1
+    app.v_alerte_filtre.set("toutes"); app._rafraichir_grille()
+    gui.DialogueTracer = lambda parent, idx="": type("D", (), {"resultat": None, "destroy": lambda self: None})()
+    app.tracer_norme()
     # fiche poste et à propos ne lèvent pas
     gui.FenetreTexte = lambda *a, **k: None
     app.fiche_poste(); app.a_propos()

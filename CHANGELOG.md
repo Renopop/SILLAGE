@@ -2,6 +2,31 @@
 
 Numérotation MAJEUR.MINEUR.CORRECTIF ; version dans `sillage/version.py`.
 
+## 0.5.0 — 2026-11-05 (lot 4 : traçabilité vers la norme)
+
+- `norme.py` : références de paragraphes reconnues et normalisées (CS, AMC,
+  FAR, JAR, 14 CFR : « CS 25.1309 », « AMC 25.1309 », « FAR 25.1353 ») ;
+  `tracer` propose, pour chaque exigence sans paragraphe, les paragraphes
+  cités par ses meilleurs passages dans l'index de la norme (score du
+  passage, première référence du passage privilégiée), avec un paragraphe
+  « retenu » au-dessus du seuil ; classeur de relecture (`exporter_tracabilite`,
+  colonnes Norme retenue / Validé) réimportable (`importer_tracabilite`) ;
+  `appliquer` reporte les paragraphes dans le référentiel ; JSON
+  aller-retour.
+- Couverture de la norme : paragraphes cités dans les documents de la norme
+  et exigences rattachées à chacun ; les paragraphes sans exigence sont
+  listés (applicabilité à décider par l'ingénieur).
+- Grille : alerte `impact_norme` (NC, PC, trou ou statut inconnu sur une
+  exigence tracée), feuilles « Impact norme » et « Couverture norme »,
+  compte des exigences tracées dans le résumé.
+- Ligne de commande : `tracer`, `couverture` ; `grille --tracabilite`,
+  `--norme-documents`.
+- Interface : Outils → tracer vers la norme (dialogue index / seuil),
+  charger une traçabilité (JSON ou classeur relu), documents de la norme
+  pour la couverture ; filtre et détail « impact norme ».
+- Tests du lot 4 (références, traçabilité proposée / relue / appliquée,
+  couverture, grille, ligne de commande, interface).
+
 ## 0.4.0 — 2026-11-05 (interface graphique autonome, lanceur, scripts, spec)
 
 - `sillage/gui.py` (Tkinter) : projet (spécification, fournisseur, NCM et

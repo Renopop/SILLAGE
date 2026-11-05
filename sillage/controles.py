@@ -28,6 +28,8 @@ C_SANS_APPUI = "c_sans_appui"           # « conforme » sans passage comparable
 C_FAIBLE = "c_faible"                   # « conforme » avec un appui de score faible
 VALEURS_ABSENTES = "valeurs_absentes"   # exigence chiffrée dont aucune valeur n'est citée par les passages
 AFFAIBLISSEMENT = "affaiblissement"     # expression d'affaiblissement à côté de l'identifiant
+# lot 4
+IMPACT_NORME = "impact_norme"           # écart (NC, PC, trou, statut inconnu) sur une exigence tracée vers la norme
 
 # clôture d'un écart
 CLOTURE_DEROGATION = "dérogation"
@@ -81,8 +83,9 @@ class Grille:
         for s in Statut:
             r[s.value] = sum(1 for l in self.lignes if l.dans_referentiel and l.statut is s)
         for t in (TROU, ORPHELIN, DOUBLON, INCOHERENCE, STATUT_INCONNU, ECART_OUVERT,
-                  C_SANS_APPUI, C_FAIBLE, VALEURS_ABSENTES, AFFAIBLISSEMENT):
+                  C_SANS_APPUI, C_FAIBLE, VALEURS_ABSENTES, AFFAIBLISSEMENT, IMPACT_NORME):
             r[t] = sum(1 for a in self.alertes if a.type == t)
+        r["tracees"] = sum(1 for l in self.lignes if l.dans_referentiel and l.norme)
         r["ecarts"] = sum(1 for l in self.lignes if l.dans_referentiel and l.statut in (Statut.PARTIEL, Statut.NON_CONFORME))
         r["couverts"] = r["exigences"] - r[TROU]
         return r
@@ -102,7 +105,12 @@ class Grille:
                           f"valeurs chiffrées absentes : {r[VALEURS_ABSENTES]}")
         if r[AFFAIBLISSEMENT]:
             lignes.append(f"Exigences avec affaiblissement à proximité : {r[AFFAIBLISSEMENT]}")
+        if r["tracees"]:
+            lignes.append(f"Exigences tracées vers la norme : {r['tracees']} — écarts à impact norme : {r[IMPACT_NORME]}")
         return "\n".join(lignes)
+
+    def impacts_norme(self) -> List["LigneGrille"]:
+        return [l for l in self.lignes if IMPACT_NORME in l.alertes]
 
 
 def cloture_de(ligne: LigneNCM) -> str:
@@ -115,9 +123,14 @@ def cloture_de(ligne: LigneNCM) -> str:
     return CLOTURE_OUVERT
 
 
-def controler(ref: Referentiel, ncm: NCM, campagne=None, releve=None) -> Grille:
+def controler(ref: Referentiel, ncm: NCM, campagne=None, releve=None, tracabilite=None) -> Grille:
     """Grille des écarts. `campagne` (appui.Campagne) et `releve`
-    (affaiblissements.Releve) sont les résultats optionnels du lot 3."""
+    (affaiblissements.Releve) sont les résultats optionnels du lot 3 ;
+    `tracabilite` (norme.Tracabilite) celui du lot 4, reporté dans le champ
+    `norme` des exigences avant les contrôles."""
+    if tracabilite is not None:
+        from .norme import appliquer
+        appliquer(ref, tracabilite)
     g = Grille(fournisseur=ncm.fournisseur, revision=ncm.revision, referentiel=ref.source, ncm=ncm.fichier)
     par_id = ncm.par_id()
     exigences = ref.par_id()
@@ -141,6 +154,9 @@ def controler(ref: Referentiel, ncm: NCM, campagne=None, releve=None) -> Grille:
             lg.alertes.append(AFFAIBLISSEMENT)
             g.alertes.append(Alerte(AFFAIBLISSEMENT, ident, "près de l'identifiant : " + ", ".join(f"« {x} »" for x in lg.affaiblissements),
                                     "; ".join(dict.fromkeys(f"{Path(o.fichier).name}, {o.reference}" for o in affaibl[ident]))))
+        if lg.norme and lg.statut in (Statut.PARTIEL, Statut.NON_CONFORME, Statut.INCONNU):
+            lg.alertes.append(IMPACT_NORME)
+            g.alertes.append(Alerte(IMPACT_NORME, ident, f"{lg.statut.libelle} sur une exigence tracée vers {lg.norme}", lg.origine))
         g.lignes.append(lg)
 
     for ident in trier([i for i in par_id if i not in exigences]):

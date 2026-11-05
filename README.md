@@ -85,7 +85,19 @@ python -m sillage grille --spec SPEC_exigences.xlsx --ncm NCM_fournisseur_revB.x
 
 :: expressions d'affaiblissement (TBD, TBC, where practicable, sous réserve…) rattachées aux exigences
 python -m sillage affaiblissements D:\Fournisseurs\A\Documents\Spec_fournisseur.docx --spec SPEC_exigences.xlsx
+
+:: lot 4 — norme : indexer la CS-25, proposer un paragraphe par exigence, relire le classeur, puis l'appliquer à la grille
+python -m sillage indexer D:\Normes\CS-25 --index D:\Normes\index_CS-25
+python -m sillage tracer --spec SPEC_exigences.xlsx --index D:\Normes\index_CS-25 --json trac.json --xlsx trac_relecture.xlsx
+python -m sillage grille --spec SPEC_exigences.xlsx --ncm NCM_fournisseur_revB.xlsx --tracabilite trac_relecture.xlsx ^
+    --norme-documents D:\Normes\CS-25\CS-25_Amdt27.pdf --sortie grille_revB.xlsx
+python -m sillage couverture --spec SPEC_exigences.xlsx --tracabilite trac_relecture.xlsx --norme-documents D:\Normes\CS-25\CS-25_Amdt27.pdf
 ```
+
+Tout écart sur une exigence tracée vers la norme porte l'alerte « impact
+norme » et figure dans la feuille « Impact norme » du classeur : c'est la
+liste des risques de certification. La feuille « Couverture norme » donne les
+paragraphes cités par la norme et les exigences rattachées à chacun.
 
 Les seuils d'appui (`--seuil-etaye 0.5 --seuil-faible 0.25`) dépendent du
 reranker servi par la passerelle : à calibrer sur quelques exigences dont on

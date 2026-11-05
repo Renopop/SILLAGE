@@ -16,7 +16,7 @@ def test_export_grille(tmp_path):
     g = controler(ref, ncm)
     p = exporter_grille(g, tmp_path / "out" / "grille.xlsx")
     wb = load_workbook(str(p))
-    assert wb.sheetnames == ["Grille", "Alertes", "Résumé"]
+    assert wb.sheetnames == ["Grille", "Alertes", "Impact norme", "Résumé"]   # SPEC trace REQ-1/3/4/5 vers la norme
     ws = wb["Grille"]
     assert ws["A1"].value == "Identifiant" and ws["C1"].value == "Statut"
     lignes = {ws.cell(r, 1).value: [ws.cell(r, c).value for c in range(1, 18)] for r in range(2, ws.max_row + 1)}
@@ -26,7 +26,8 @@ def test_export_grille(tmp_path):
     assert lignes["REQ-9"][13] == "orphelin"
     assert ws.freeze_panes == "A2"
     wa = wb["Alertes"]
-    assert wa.max_row == 3  # en-tête + trou + orphelin
+    assert wa.max_row == 4  # en-tête + trou + orphelin + impact norme (REQ-4 NC tracée)
+    assert wb["Impact norme"].cell(2, 1).value == "REQ-4"
     d = exporter_diff(comparer(ncm, ncm), tmp_path / "diff.xlsx")
     assert load_workbook(str(d))["Diff"].max_row == 1
 

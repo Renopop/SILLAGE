@@ -5,6 +5,8 @@
     sillage diff   --avant NCM_A --apres NCM_B [--sortie diff.xlsx]
     sillage statuts [--ajouter "valeur=C"]
     sillage profils [--proposer NCM --fournisseur F]
+    sillage tracer --spec SPEC --index INDEX_NORME [--json t.json] [--xlsx t.xlsx]
+    sillage couverture --spec SPEC [--tracabilite T] [--norme-documents F...]
     sillage gui
     sillage version
 """
@@ -84,6 +86,20 @@ def _releve(a, ref):
     return relever(fichiers, motif=ref.motif, ids_connus=ref.ids)
 
 
+def _tracabilite(a):
+    from .norme import Tracabilite
+    chemin = getattr(a, "tracabilite", None)
+    return Tracabilite.charger(chemin) if chemin else None
+
+
+def _couverture(a, ref):
+    from .norme import couverture, paragraphes_cites
+    docs = getattr(a, "norme_documents", None)
+    if not docs and not any(e.norme for e in ref.exigences):
+        return None
+    return couverture(ref, paragraphes_cites(docs) if docs else None)
+
+
 def cmd_grille(a) -> int:
     from .controles import controler
     from .grille import exporter_grille
@@ -96,11 +112,62 @@ def cmd_grille(a) -> int:
     releve = _releve(a, ref)
     if releve is not None:
         print(releve.texte_resume())
-    g = controler(ref, ncm, campagne=campagne, releve=releve)
+    trac = _tracabilite(a)
+    if trac is not None:
+        print(trac.texte_resume())
+    g = controler(ref, ncm, campagne=campagne, releve=releve, tracabilite=trac)
     print(g.texte_resume())
+    couv = _couverture(a, ref)
+    if couv is not None:
+        print(couv.texte_resume())
     sortie = a.sortie or str(Path(a.ncm).with_suffix("")) + "_grille.xlsx"
-    exporter_grille(g, sortie)
+    exporter_grille(g, sortie, couverture=couv)
     print(f"Grille écrite : {sortie}")
+    return 0
+
+
+def cmd_tracer(a) -> int:
+    from .norme import exporter_tracabilite, tracer
+    from .referentiel import lire_referentiel
+    from .rivage import Moteur, disponible, message_absent
+    if not disponible():
+        print(message_absent(), file=sys.stderr)
+        return 1
+    ref = lire_referentiel(a.spec)
+    index_dir = a.index
+    print(f"{VERSION_LABEL} — traçabilité de {len(ref)} exigences ({Path(a.spec).name}) vers la norme indexée dans {index_dir}")
+    def progression(k, n, ident):
+        print(f"  [{k}/{n}] {ident}", end="\r", flush=True)
+    with Moteur(index_dir) as moteur:
+        t = tracer(ref, moteur, prefixes=a.dossier or None, fichiers=a.documents or None,
+                   seulement_sans_norme=not a.tout, n_passages=a.n_passages, seuil_retenue=a.seuil, progression=progression)
+    print()
+    print(t.texte_resume())
+    for ident, tr in t.traces.items():
+        if tr.origine == "proposée":
+            cands = ", ".join(f"{c.norme} ({c.score:.2f})" if c.score is not None else c.norme for c in tr.candidats[:3]) or "—"
+            print(f"  {ident:<14} {tr.retenue or '—':<14} candidats : {cands}")
+    if a.json:
+        t.enregistrer(a.json)
+        print(f"Traçabilité écrite : {a.json}")
+    xlsx = a.xlsx or (str(Path(a.spec).with_suffix("")) + "_tracabilite.xlsx")
+    exporter_tracabilite(ref, t, xlsx)
+    print(f"Classeur de relecture écrit : {xlsx} (corrigez « Norme retenue », cochez « Validé », puis grille --tracabilite)")
+    return 0
+
+
+def cmd_couverture(a) -> int:
+    from .norme import couverture, paragraphes_cites
+    from .referentiel import lire_referentiel
+    ref = lire_referentiel(a.spec)
+    trac = _tracabilite(a)
+    if trac is not None:
+        from .norme import appliquer
+        appliquer(ref, trac)
+    c = couverture(ref, paragraphes_cites(a.norme_documents) if a.norme_documents else None)
+    print(f"{VERSION_LABEL} — {c.texte_resume()}")
+    for p, n, ids in c.lignes():
+        print(f"  {p:<14} cité ×{n:<4} {', '.join(ids) if ids else '— aucune exigence'}")
     return 0
 
 
@@ -281,8 +348,28 @@ def construire_parseur() -> argparse.ArgumentParser:
     q.add_argument("--verifier", action="store_true", help="lot 3 : vérifier les « C » dans la spécification fournisseur (RIVAGE)")
     q.add_argument("--appuis", metavar="JSON", help="lot 3 : reprendre une campagne d'appuis enregistrée par « appui --json »")
     q.add_argument("--affaiblissements", action="append", metavar="FICHIER", help="lot 3 : documents du fournisseur à passer au crible lexical (répétable)")
+    q.add_argument("--tracabilite", metavar="FICHIER", help="lot 4 : traçabilité vers la norme (JSON de « tracer », ou classeur relu)")
+    q.add_argument("--norme-documents", action="append", metavar="FICHIER", help="lot 4 : documents de la norme, pour la feuille de couverture (répétable)")
     options_rivage(q)
     q.set_defaults(fonction=cmd_grille)
+
+    q = sp.add_parser("tracer", help="lot 4 : proposer, pour chaque exigence, le paragraphe de norme (index de la norme)")
+    q.add_argument("--spec", required=True)
+    q.add_argument("--index", required=True, help="index RIVAGE de la norme (sillage indexer <dossier norme> --index …)")
+    q.add_argument("--dossier", action="append", metavar="PREFIXE", help="portée dans l'index (répétable)")
+    q.add_argument("--documents", action="append", metavar="CHEMIN", help="portée : fichier indexé (répétable)")
+    q.add_argument("--tout", action="store_true", help="aussi les exigences qui ont déjà un paragraphe dans la spécification")
+    q.add_argument("--n-passages", type=int, default=5)
+    q.add_argument("--seuil", type=float, default=0.3, help="score minimal pour proposer un paragraphe retenu")
+    q.add_argument("--json", help="enregistrer la traçabilité (JSON)")
+    q.add_argument("--xlsx", help="classeur de relecture (défaut : <spec>_tracabilite.xlsx)")
+    q.set_defaults(fonction=cmd_tracer)
+
+    q = sp.add_parser("couverture", help="lot 4 : paragraphes de la norme et exigences qui s'y rattachent")
+    q.add_argument("--spec", required=True)
+    q.add_argument("--tracabilite", metavar="FICHIER")
+    q.add_argument("--norme-documents", action="append", metavar="FICHIER", help="documents de la norme (répétable)")
+    q.set_defaults(fonction=cmd_couverture)
 
     q = sp.add_parser("indexer", help="indexer les documents d'un fournisseur avec le moteur de RIVAGE")
     q.add_argument("dossier", help="dossier des documents du fournisseur")

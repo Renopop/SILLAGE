@@ -56,7 +56,7 @@ nous : les identifiants sont l'invariant, tout le reste s'y rattache.
 | 1 | Lecture des NCM : tableaux xlsx / docx / pdf / csv, repérage des identifiants (plages, sous-identifiants), reconnaissance des colonnes par contenu, dictionnaire des statuts, profil fournisseur, diagnostic d'exploitabilité, NCM normalisée (JSON) | non | fait (0.1.0) |
 | 2 | Référentiel et contrôles : lecture de la spécification (tableur ou document), trous, orphelins, doublons, incohérences, diff entre révisions, clôture des écarts, **grille des écarts** (xlsx) et ligne de commande | non | fait (0.1.0) |
 | 3 | Vérification des « C » avec RIVAGE : pour chaque exigence déclarée conforme, le passage de la spécification fournisseur qui l'étaye et son score ; « C » sans appui en tête de revue ; valeurs chiffrées de l'exigence citées ou non ; campagne lexicale des affaiblissements (TBD, TBC, where practicable…) ; indexation des documents du fournisseur par le moteur de RIVAGE | non (scores) | fait (0.2.0) |
-| 4 | Traçabilité vers la norme : pré-remplissage par RIVAGE (exigence → paragraphe), relecture, figement ; liste des NC à impact certification par jointure | non (scores) | à faire |
+| 4 | Traçabilité vers la norme : proposition par le moteur (exigence → paragraphes cités par ses meilleurs passages dans l'index de la norme), classeur de relecture, figement, alerte « impact norme » sur tout écart tracé, couverture de la norme (paragraphes sans exigence) | non (scores) | fait (0.5.0) |
 | 5 | Fiches de revue pour les NC et PC : exigence, ligne de NCM, passages, résumé de l'écart et du risque — seule étape générative, verdict laissé à l'ingénieur | oui, bornée | à faire |
 | 3 ter | Moteur de RIVAGE embarqué (copie, synchronisation, sonde) : SILLAGE autonome | non | fait (0.3.0) |
 | 6 | Interface graphique propre à SILLAGE (Tkinter) : projet (spécification, fournisseur, NCM, documents), lecture et diagnostic, confirmation de profil, enrichissement des statuts, indexation, vérification, affaiblissements, diff, grille à l'écran filtrable avec volet de détail, exports ; `sillage_app.py`, `launch.bat`, `install.bat`, `build_exe.bat`, `SILLAGE.spec` | non | fait (0.4.0) |
@@ -168,6 +168,36 @@ absentes, affaiblissements) et quatre alertes (`c_sans_appui`, `c_faible`,
 `valeurs_absentes`, `affaiblissement`). Une campagne d'appuis s'enregistre en
 JSON (`appui --json`) et se rejoue dans la grille (`grille --appuis`) sans
 nouvel appel à la passerelle.
+
+## 5 quater. Lot 4 — traçabilité vers la norme (0.5.0)
+
+**Proposer.** La norme (CS-25 et ses AMC, par exemple) est indexée par le
+moteur embarqué dans un index dédié (`sillage indexer <dossier norme> --index
+<index norme>`). Pour chaque exigence sans paragraphe de norme dans la
+spécification, `sillage tracer` pose le texte de l'exigence comme question
+dans cet index et extrait des meilleurs passages les références de
+paragraphes (« CS 25.1309 », « AMC 25.1309 », « FAR 25.1353 »…), chacune
+avec le score de reranking du passage ; dans un même passage, la première
+référence (le titre du paragraphe) est privilégiée. Le meilleur candidat
+au-dessus du seuil est proposé comme paragraphe retenu. Les exigences déjà
+tracées dans la spécification sont conservées telles quelles.
+
+**Relire.** Le classeur de relecture donne, par exigence, le paragraphe
+proposé, les candidats et leurs scores, le passage et son document ;
+l'ingénieur corrige « Norme retenue » et coche « Validé ». Rien n'est figé
+sans lui : l'applicabilité d'un paragraphe est une décision humaine.
+
+**Figer.** Le classeur relu (ou le JSON) se charge dans la grille
+(`grille --tracabilite`) : les paragraphes retenus deviennent le champ
+« norme » des exigences. Tout écart (NC, PC, trou, statut inconnu) sur une
+exigence tracée porte l'alerte **impact norme** ; la feuille « Impact
+norme » les liste, c'est la liste des risques de certification à traiter en
+priorité.
+
+**Couverture.** Avec les documents de la norme (`--norme-documents`), la
+feuille « Couverture norme » liste chaque paragraphe cité et les exigences
+qui s'y rattachent ; un paragraphe sans exigence est soit non applicable,
+soit un manque de la spécification : colonne « Applicable ? » à remplir.
 
 ## 5 ter. Le moteur embarqué (0.3.0) — SILLAGE autonome
 

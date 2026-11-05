@@ -47,7 +47,9 @@ def _feuille(wb: Workbook, titre: str, colonnes: List[tuple]):
     return ws
 
 
-def exporter_grille(grille: Grille, chemin) -> Path:
+def exporter_grille(grille: Grille, chemin, couverture=None) -> Path:
+    """Classeur : Grille, Alertes, Impact norme (si des exigences sont tracées),
+    Couverture norme (si `couverture` est donné), Résumé."""
     wb = Workbook()
     wb.remove(wb.active)
 
@@ -76,6 +78,27 @@ def exporter_grille(grille: Grille, chemin) -> Path:
     for a in grille.alertes:
         wa.append([a.type, a.id, a.message, a.origine])
     wa.auto_filter.ref = wa.dimensions
+
+    if any(l.norme for l in grille.lignes):
+        wi = _feuille(wb, "Impact norme", [("Identifiant", 14), ("Norme", 16), ("Statut", 9), ("Libellé", 22),
+                                            ("Exigence", 60), ("Justification", 60), ("Clôture", 12), ("Dérogation", 16)])
+        for lg in grille.impacts_norme():
+            wi.append([lg.id, lg.norme, lg.statut.value, lg.statut.libelle, lg.texte, lg.justification, lg.cloture,
+                       lg.champs.get("derogation", "")])
+            r = wi.max_row
+            wi.cell(r, 3).fill = PatternFill("solid", fgColor=COULEURS[lg.statut])
+            for c in (5, 6):
+                wi.cell(r, c).alignment = Alignment(wrap_text=True, vertical="top")
+        wi.auto_filter.ref = wi.dimensions
+
+    if couverture is not None:
+        wc = _feuille(wb, "Couverture norme", [("Paragraphe", 16), ("Cité (occurrences)", 16), ("Exigences tracées", 50),
+                                                ("Nombre", 8), ("Applicable ?", 12)])
+        for p, n, ids in couverture.lignes():
+            wc.append([p, n, ", ".join(ids), len(ids), ""])
+            if not ids:
+                wc.cell(wc.max_row, 3).fill = PatternFill("solid", fgColor=COULEURS[Statut.INCONNU])
+        wc.auto_filter.ref = wc.dimensions
 
     wr = _feuille(wb, "Résumé", [("Indicateur", 30), ("Valeur", 14)])
     wr.append(["Référentiel", grille.referentiel])

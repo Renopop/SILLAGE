@@ -122,7 +122,7 @@ SCENARIO = textwrap.dedent('''
     class FauxSynth:
         def available(self): return True
         def synthesize_raw(self, question, user_content, sources, log=None, temperature=0.1, max_tokens=1024, system_prompt=None):
-            return SimpleNamespace(answer="ÉCART :\nécart (NCM).\nRISQUE :\nrisque (NCM).\nQUESTIONS POUR LA REVUE :\n1. ?", sources=sources,
+            return SimpleNamespace(answer="ÉCART : écart (NCM). RISQUE : risque (NCM). QUESTIONS POUR LA REVUE : 1. ?", sources=sources,
                                    model="faux", error=None, fallback_used=False, tronquee=False)
         def close(self): pass
     fiches_mod.ouvrir_synthesizer = lambda log=None: FauxSynth()

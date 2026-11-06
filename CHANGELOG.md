@@ -16,6 +16,9 @@ Numérotation MAJEUR.MINEUR.CORRECTIF ; version dans `sillage/version.py`.
   fiches, mémoire, interface avec les captures, autonomie, atouts, gains,
   audit, pistes, règles en une page), produite par
   `docs/outils/make_deck_sillage.js` (pptxgenjs).
+- `docs/captures/` : les 15 captures refaites avec un dossier de projet
+  neutre (`/home/user/Projets/Calculateur_cabine`) à la place du dossier
+  temporaire de la session qui apparaissait dans les champs de chemin.
 
 ## 0.7.1 — 2026-11-05 (audit qualité, corrections)
 

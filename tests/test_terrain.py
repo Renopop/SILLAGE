@@ -241,3 +241,53 @@ def test_lignes_de_suite_dans_un_tableur(tmp_path):
     assert par["REQ-1"][0].statut is Statut.PARTIEL
     assert par["REQ-1"][0].justification == "Qualified to +55 °C only ; test at +70 °C planned."
     assert par["REQ-2"][0].statut is Statut.CONFORME
+
+
+def _pdf_quadrillage_faux(chemin, lignes):
+    """PDF scanné puis OCRisé : des traits de colonnes et un cadre, mais aucune
+    ligne horizontale entre les rangées — pdfplumber y voit une seule rangée
+    de cellules géantes. Les statuts sont centrés dans leur colonne."""
+    doc = fitz.open()
+    page = doc.new_page(width=842, height=595)
+    xs = [30, 70, 170, 520, 640, 820]
+    y0, y, h = 30, 40, 11
+    page.insert_text((300, 22), "This document comes pre-filtered. Unless listed below, all other items can be assumed compliant.", fontsize=6)
+    for row in lignes:
+        cellules = [str(c).split("\n") for c in row]
+        haut = max(len(c) for c in cellules)
+        for col, (x, lc) in enumerate(zip(xs, cellules)):
+            for i, l in enumerate(lc):
+                if not l:
+                    continue
+                if col == 3:   # statut centré dans la largeur et la hauteur de la cellule
+                    largeur = fitz.get_text_length(l, fontsize=7)
+                    xx = x + (xs[4] - x - largeur) / 2
+                    yy = y + ((haut - len(lc)) // 2 + i) * h
+                else:
+                    xx, yy = x, y + i * h
+                page.insert_text((xx, yy), l, fontsize=7)
+        y += (haut + 1) * h
+    for x in xs:
+        page.draw_line((x - 4, y0), (x - 4, y), width=0.8)
+    page.draw_rect(fitz.Rect(xs[0] - 4, y0, xs[-1] - 4, y), width=0.8)
+    doc.save(str(chemin))
+    doc.close()
+    return chemin
+
+
+def test_ncm_pdf_quadrillage_faux_statuts_centres(tmp_path):
+    ref = lire_referentiel(_pdf_texte(tmp_path / "spec.pdf", PAGES))
+    p = _pdf_quadrillage_faux(tmp_path / "ncm_scan.pdf", NCM_SANS_TRAITS)
+    import pdfplumber
+    with pdfplumber.open(str(p)) as pdf:
+        assert pdf.pages[0].extract_tables()                       # un faux tableau est bien détecté
+    ncm = lire_ncm(p, ref.motif, DictionnaireStatuts(), ids_referentiel=ref.ids,
+                   textes_referentiel={e.id: e.texte for e in ref.exigences})
+    assert ncm.ids == ["REQ_B2-3_34", "REQ_B2-3_16", "REQ_B2-3_128"]
+    par = ncm.par_id()
+    assert par["REQ_B2-3_34"][0].statut is Statut.CONFORME
+    assert par["REQ_B2-3_16"][0].statut is Statut.PARTIEL
+    assert par["REQ_B2-3_128"][0].statut is Statut.NON_APPLICABLE
+    assert par["REQ_B2-3_16"][0].justification.endswith("measurement.")
+    assert ncm.diagnostic.prefiltree
+    assert any("ligne par ligne" in a for a in ncm.diagnostic.avertissements)

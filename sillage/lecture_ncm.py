@@ -232,19 +232,37 @@ def lire_ncm(chemin, motif: Optional[MotifIdentifiant] = None, dico: Optional[Di
         diag.avertissements.append(str(exc))
         tableaux = lire_tableaux(chemin)
         ocr = False
+
+    def lire(tableaux):
+        retenues = None
+        for t in tableaux:
+            cols = reconnaitre_colonnes(t, motif, dico, profil, textes_referentiel)
+            if cols is None:
+                continue
+            diag.tableaux_retenus += 1
+            if retenues is None:
+                retenues = cols
+                diag.chemin = cols.chemin
+                diag.colonnes = cols.roles()
+            _lire_lignes(t, cols, motif, dico, ncm, diag)
+        return retenues
+
     diag.tableaux_lus = len(tableaux)
     diag.tableaux_ocr = sum(1 for t in tableaux if t.ocr)
-    colonnes_retenues: Optional[Colonnes] = None
-    for t in tableaux:
-        cols = reconnaitre_colonnes(t, motif, dico, profil, textes_referentiel)
-        if cols is None:
-            continue
-        diag.tableaux_retenus += 1
-        if colonnes_retenues is None:
-            colonnes_retenues = cols
-            diag.chemin = cols.chemin
-            diag.colonnes = cols.roles()
-        _lire_lignes(t, cols, motif, dico, ncm, diag)
+    effondres = [t for t in tableaux if chemin.suffix.lower() == ".pdf" and not t.ocr and _effondre(t, motif)]
+    colonnes_retenues: Optional[Colonnes] = lire([t for t in tableaux if t not in effondres])
+    if colonnes_retenues is None and chemin.suffix.lower() == ".pdf" and any(not t.ocr for t in tableaux):
+        # le quadrillage détecté (PDF scanné puis OCRisé : traits partiels, cellules géantes)
+        # ne donne rien : relecture ligne par ligne, colonnes déduites des alignements
+        par_alignements = lire_tableaux(chemin, ocr=ocr, alignements=True)
+        if par_alignements:
+            diag.tableaux_lus = len(par_alignements)
+            diag.tableaux_ocr = sum(1 for t in par_alignements if t.ocr)
+            colonnes_retenues = lire(par_alignements)
+            if colonnes_retenues is not None:
+                tableaux = par_alignements
+                diag.avertissements.append("quadrillage du PDF inexploitable : pages lues ligne par ligne, "
+                                           "colonnes déduites des alignements du texte (à relire)")
 
     diag.prefiltree = ncm.prefiltree = _declaree_prefiltree(chemin, tableaux, ocr)
     if diag.tableaux_retenus == 0:
@@ -284,6 +302,23 @@ def _declaree_prefiltree(chemin: Path, tableaux: Sequence[Tableau], ocr: bool = 
         except Exception:   # un document illisible hors tableaux n'empêche pas la lecture
             pass
     return any(_PREFILTREE.search(x) for x in textes)
+
+
+def _effondre(t: Tableau, motif: MotifIdentifiant) -> bool:
+    """Tableau PDF « effondré » : le quadrillage détecté n'a pas de lignes
+    horizontales et toute une colonne tient dans une cellule — plusieurs
+    identifiants sur des lignes différentes d'une même cellule, et une autre
+    cellule de la rangée sur plusieurs lignes aussi. Lu tel quel, chaque
+    identifiant hériterait du premier statut de la colonne."""
+    rangees = effondrees = 0
+    for l in t.lignes:
+        cellules_ids = [c for c in l if "\n" in c and len(motif.extraire(c, deplier_plages=False)) >= 2]
+        if not cellules_ids:
+            continue
+        rangees += 1
+        if any("\n" in c for c in l if c not in cellules_ids):
+            effondrees += 1
+    return rangees > 0 and effondrees * 2 >= rangees
 
 
 def _continuation(l: Sequence[str], cols: Colonnes) -> bool:

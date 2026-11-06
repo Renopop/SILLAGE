@@ -135,6 +135,27 @@ def tableau_par_alignements(page, fichier: str, numero_page: int) -> List[Tablea
             groupes.append([x])
     minimum = max(3, len(lignes) // 5)
     colonnes = sorted(sum(g) / len(g) for g in groupes if len(g) >= minimum)
+    # valeurs centrées dans leur colonne (« Compliant », « Partially compliant », « N/A » ne
+    # commencent pas à la même abscisse) : deux débuts voisins qui ne coexistent jamais sur
+    # une même ligne appartiennent à la même colonne
+    def debuts_ligne(l):
+        out, prec = [], None
+        for w in l:
+            if prec is None or w["x0"] - prec["x1"] > 1.2 * max(w["height"], 4.0):
+                out.append(w["x0"])
+            prec = w
+        return out
+    lignes_debuts = [debuts_ligne(l) for l in lignes]
+    fusionnees: List[float] = []
+    for x in colonnes:
+        if fusionnees:
+            a = fusionnees[-1]
+            coexistent = sum(1 for d in lignes_debuts
+                             if any(abs(v - a) <= 4 for v in d) and any(abs(v - x) <= 4 for v in d))
+            if coexistent < 2:
+                continue
+        fusionnees.append(x)
+    colonnes = fusionnees
     if len(colonnes) < 2:
         return []
     t = Tableau(fichier, f"page {numero_page}, tableau 1")
@@ -147,19 +168,24 @@ def tableau_par_alignements(page, fichier: str, numero_page: int) -> List[Tablea
     return [t] if len(t.lignes) >= 2 else []
 
 
-def lire_pdf(chemin: Path, ocr: bool = False) -> List[Tableau]:
+def lire_pdf(chemin: Path, ocr: bool = False, alignements: bool = False) -> List[Tableau]:
     """Tableaux détectés par pdfplumber ; avec `ocr`, les pages sans couche
     texte passent par l'OCR de secours et leurs tableaux sont reconstruits
-    depuis le texte rendu (voir `ocr.tableaux_depuis_texte`)."""
+    depuis le texte rendu (voir `ocr.tableaux_depuis_texte`). Avec
+    `alignements`, le quadrillage est ignoré et chaque page de texte est lue
+    ligne par ligne (`tableau_par_alignements`) : c'est le repli quand les
+    traits détectés ne donnent rien d'exploitable (PDF scanné puis OCRisé)."""
     import pdfplumber
     bruts: List[Tableau] = []
     scannees: List[int] = []
     with pdfplumber.open(str(chemin)) as pdf:
         for p, page in enumerate(pdf.pages, start=1):
-            try:
-                tables = page.extract_tables() or []
-            except Exception:  # pragma: no cover - dépend du PDF
-                tables = []
+            tables = []
+            if not alignements:
+                try:
+                    tables = page.extract_tables() or []
+                except Exception:  # pragma: no cover - dépend du PDF
+                    tables = []
             texte_page = (page.extract_text() or "").strip()
             if not tables and texte_page:
                 # pas de quadrillage : lecture ligne par ligne, colonnes déduites des alignements
@@ -244,13 +270,14 @@ LECTEURS = {
 }
 
 
-def lire_tableaux(chemin, ocr: bool = False) -> List[Tableau]:
-    """`ocr` : OCR de secours des pages scannées (PDF seulement, appels payants)."""
+def lire_tableaux(chemin, ocr: bool = False, alignements: bool = False) -> List[Tableau]:
+    """`ocr` : OCR de secours des pages scannées ; `alignements` : lecture
+    ligne par ligne sans tenir compte du quadrillage (PDF seulement)."""
     p = Path(chemin)
     lecteur = LECTEURS.get(p.suffix.lower())
     if lecteur is None:
         raise ValueError(f"format non pris en charge : {p.suffix or '(sans extension)'} — "
                          f"attendus : {', '.join(sorted(LECTEURS))}")
     if lecteur is lire_pdf:
-        return lire_pdf(p, ocr=ocr)
+        return lire_pdf(p, ocr=ocr, alignements=alignements)
     return lecteur(p)

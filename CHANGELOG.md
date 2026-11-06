@@ -2,6 +2,28 @@
 
 Numérotation MAJEUR.MINEUR.CORRECTIF ; version dans `sillage/version.py`.
 
+## 0.8.3 — 2026-11-06 (PDF scannés puis OCRisés : quadrillage inexploitable)
+
+Retour terrain, NCM PDF signée : « Tableaux lus : 2, retenus : 0 ». Le
+quadrillage détecté par pdfplumber sur un scan OCRisé n'a que des traits de
+colonnes : toute une colonne tient dans une cellule, les identifiants
+s'empilent dans une seule cellule et chacun héritait du premier statut de
+la colonne (d'où les « Partially compliant » lus « Compliant »), ou la
+cellule dépassait la longueur admise et le tableau était rejeté.
+
+- `lecture_ncm._effondre` : un tableau PDF dont une cellule porte plusieurs
+  identifiants sur des lignes différentes, avec d'autres cellules
+  multi-lignes, est reconnu comme effondré et écarté.
+- Repli automatique : quand aucun tableau d'une NCM PDF n'est retenu, les
+  pages sont relues ligne par ligne sans tenir compte du quadrillage
+  (`lire_tableaux(..., alignements=True)`), et le diagnostic le dit.
+- `tableau_par_alignements` : deux débuts de colonne voisins qui ne
+  coexistent jamais sur une même ligne sont fusionnés — les statuts centrés
+  dans leur colonne (« Compliant », « Partially compliant », « N/A »
+  commencent à des abscisses différentes) restent une seule colonne.
+- Test : NCM PDF à quadrillage partiel (cadre et traits de colonnes, pas de
+  lignes) avec statuts centrés, lue correctement après repli.
+
 ## 0.8.2 — 2026-11-06 (tableaux lus ligne par ligne)
 
 Retour terrain : des « Partially compliant » ressortaient en « Compliant ».

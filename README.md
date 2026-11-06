@@ -154,7 +154,10 @@ les colonnes sont déduites des alignements du texte et chaque ligne de texte
 devient une ligne de tableau ; une cellule haute (le statut « Partially
 compliant » écrit sur deux lignes, ou centré dans une ligne haute) ressort
 en lignes de suite, qui sont recollées à la ligne de l'identifiant avant
-toute lecture. Même recollage dans un tableur ou un tableau OCR.
+toute lecture. Même recollage dans un tableur ou un tableau OCR. Si le
+quadrillage détecté d'un PDF ne donne rien (scan OCRisé : traits de
+colonnes sans lignes, cellules géantes), les pages sont relues ligne par
+ligne automatiquement et le diagnostic le signale.
 
 Une NCM qui se déclare pré-filtrée (« unless listed below, all other items
 can be assumed compliant ») est reconnue : les exigences absentes reçoivent

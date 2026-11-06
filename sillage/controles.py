@@ -25,6 +25,7 @@ from .referentiel import Referentiel
 
 # types d'alertes
 TROU = "trou"                   # exigence sans ligne de NCM
+CONFORME_IMPLICITE = "conforme_implicite"   # exigence absente d'une NCM pré-filtrée : conforme par défaut, à vérifier
 ORPHELIN = "orphelin"           # ligne de NCM citant un identifiant absent du référentiel
 DOUBLON = "doublon"             # plusieurs lignes, même statut
 INCOHERENCE = "incoherence"     # plusieurs lignes, statuts différents
@@ -96,7 +97,7 @@ class Grille:
         r: Dict[str, int] = {"exigences": sum(1 for l in self.lignes if l.dans_referentiel)}
         for s in Statut:
             r[s.value] = sum(1 for l in self.lignes if l.dans_referentiel and l.statut is s)
-        for t in (TROU, ORPHELIN, DOUBLON, INCOHERENCE, STATUT_INCONNU, ECART_OUVERT,
+        for t in (TROU, CONFORME_IMPLICITE, ORPHELIN, DOUBLON, INCOHERENCE, STATUT_INCONNU, ECART_OUVERT,
                   C_SANS_APPUI, C_FAIBLE, VALEURS_ABSENTES, AFFAIBLISSEMENT, IMPACT_NORME):
             r[t] = sum(1 for a in self.alertes if a.type == t)
         r["tracees"] = sum(1 for l in self.lignes if l.dans_referentiel and l.norme)
@@ -116,6 +117,8 @@ class Grille:
             f"Trous : {r[TROU]}, orphelins : {r[ORPHELIN]}, doublons : {r[DOUBLON]}, "
             f"incohérences : {r[INCOHERENCE]}, écarts ouverts : {r[ECART_OUVERT]}",
         ]
+        if r[CONFORME_IMPLICITE]:
+            lignes.append(f"Conformes implicites (absentes de la NCM pré-filtrée) : {r[CONFORME_IMPLICITE]}")
         if any(l.appui_niveau for l in self.lignes):
             lignes.append(f"« Conformes » sans appui : {r[C_SANS_APPUI]}, appui faible : {r[C_FAIBLE]}, "
                           f"valeurs chiffrées absentes : {r[VALEURS_ABSENTES]}")
@@ -142,15 +145,23 @@ def cloture_de(ligne: LigneNCM) -> str:
     return CLOTURE_OUVERT
 
 
-def controler(ref: Referentiel, ncm: NCM, campagne=None, releve=None, tracabilite=None, fiches=None) -> Grille:
+def controler(ref: Referentiel, ncm: NCM, campagne=None, releve=None, tracabilite=None, fiches=None,
+              prefiltree: Optional[bool] = None) -> Grille:
     """Grille des écarts. `campagne` (appui.Campagne) et `releve`
     (affaiblissements.Releve) sont les résultats optionnels du lot 3 ;
     `tracabilite` (norme.Tracabilite) celui du lot 4, reporté dans le champ
     `norme` des exigences avant les contrôles ; `fiches` (fiches.Fiches)
-    celui du lot 5 (texte de la fiche reporté sur la ligne)."""
+    celui du lot 5 (texte de la fiche reporté sur la ligne).
+
+    `prefiltree` (défaut : `ncm.prefiltree`) : la NCM ne liste que les
+    écarts et déclare conformes les exigences absentes — elles reçoivent
+    alors le statut C avec l'alerte « conforme implicite » au lieu de
+    « trou »."""
     if tracabilite is not None:
         from .norme import appliquer
         appliquer(ref, tracabilite)
+    if prefiltree is None:
+        prefiltree = ncm.prefiltree
     g = Grille(fournisseur=ncm.fournisseur, revision=ncm.revision, referentiel=ref.source, ncm=ncm.fichier)
     par_id = ncm.par_id()
     exigences = ref.par_id()
@@ -162,7 +173,12 @@ def controler(ref: Referentiel, ncm: NCM, campagne=None, releve=None, tracabilit
         e = exigences[ident]
         lignes = par_id.get(ident, [])
         lg = LigneGrille(id=ident, texte=e.texte, norme=e.norme, nb_lignes_ncm=len(lignes))
-        if not lignes:
+        if not lignes and prefiltree:
+            lg.statut = Statut.CONFORME
+            lg.statut_brut = "(absente : réputée conforme)"
+            lg.alertes.append(CONFORME_IMPLICITE)
+            g.alertes.append(Alerte(CONFORME_IMPLICITE, ident, "absente de la NCM pré-filtrée : conforme par défaut, sans justification"))
+        elif not lignes:
             lg.statut = Statut.INCONNU
             lg.alertes.append(TROU)
             g.alertes.append(Alerte(TROU, ident, "exigence sans ligne dans la NCM"))

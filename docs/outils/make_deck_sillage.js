@@ -208,15 +208,16 @@ s.addText("Du tableau du fournisseur, quel qu'il soit, aux lignes pivot — sans
 
 // Identifiants
 s = slide("Identifiants : reconnaître, normaliser, déplier", "Lire une NCM");
-para(s, "L'identifiant est écrit de mille façons (REQ-001, req_0042, REQ 7, REQ-100a, « REQ-100 à REQ-120 »). SILLAGE le reconnaît par un motif, le ramène à une forme unique, et déplie les plages en autant de lignes.", 0.6, 1.4, 7.4, 1.2, 15);
-formule(s, "PRÉFIXE-NUMÉRO[suffixe]       REQ-001 → REQ-1     req_0042 → REQ-42", 0.6, 2.7, 7.4, 0.8, 16);
+para(s, "L'identifiant est écrit de mille façons ([REQ_B2-3_15], REQ-001, req_0042, REQ 7, REQ-100a, « REQ-100 à REQ-120 »). SILLAGE le reconnaît par un motif, le ramène à l'écriture de la spécification, et déplie les plages en autant de lignes.", 0.6, 1.4, 7.4, 1.2, 15);
+formule(s, "PRÉFIXE sép NUMÉRO[suffixe]       [REQ_B2-3_15] → REQ_B2-3_15     REQ-B2-3-015 → REQ_B2-3_15", 0.6, 2.7, 7.4, 0.8, 15);
 bullets(s, [
-  "Motif restreint aux préfixes du référentiel (déduits de la spécification) : « CS 25.1309 » ou « ISO 9001 » ne sont jamais pris pour des exigences.",
+  "Préfixe composé possible (le code de l'annexe en fait partie) : le numéro est le dernier groupe de chiffres ; crochets, casse, séparateurs et zéros de tête sont tolérés.",
+  "Motif restreint aux préfixes du référentiel (déduits de la spécification) : « CS 25.1309 », « DO-178C » ou « B2-1 » ne sont jamais pris pour des exigences.",
   "Plages dépliées : « REQ-100 à REQ-103 », « REQ-100 to 103 », « REQ-100 – REQ-103 » donnent quatre lignes pivot ; plage inversée ou préfixes différents : pas de dépliage.",
   "Une cellule qui cite plusieurs identifiants donne plusieurs lignes ; le sous-identifiant (REQ-100a, REQ-100.2) est une exigence à part entière.",
   "Tri naturel : REQ-2 avant REQ-10, suffixes après le numéro.",
 ], 0.6, 3.7, 7.4, 3.0, 13);
-card(s, 8.4, 1.4, 4.3, 2.3, "Le motif", "Préfixe de 2 à 12 caractères commençant par une lettre, séparateur optionnel (-, _, espace, point), numéro, suffixe optionnel (lettre ou .n), délimité par des non-alphanumériques. Avec le référentiel : seuls ses préfixes.", C.background2, C.text2, 12);
+card(s, 8.4, 1.4, 4.3, 2.3, "Le motif", "Préfixe commençant par une lettre, composé de segments liés par - ou _ (REQ, SYS_REQ, REQ_B2-3) ; séparateur optionnel ; numéro ; suffixe optionnel (lettre ou .n). Avec le référentiel : seuls ses préfixes, ramenés à son écriture.", C.background2, C.text2, 12);
 card(s, 8.4, 3.9, 4.3, 2.7, "Pourquoi normaliser", "Un fournisseur écrit REQ-001, un autre req_1, un troisième REQ 1 : sans forme unique, la jointure rate et chaque exigence devient un trou. La forme normalisée est la clé de tout SILLAGE, jusqu'à la mémoire des projets.", "FFF4E3", C.accent3, 12);
 
 // Statuts
@@ -283,7 +284,8 @@ bullets(s, [
   "Statut inconnu : la valeur brute n'est pas dans le dictionnaire (alerte, et proposition d'enrichissement).",
   "Clôture d'un écart (NC ou PC) : « dérogation » si une référence de dérogation existe, « action » si une action est décrite, sinon « ouvert » (alerte).",
 ], 0.6, 4.1, 7.4, 2.6, 13);
-tableau(s, [["Alerte", "Signification"], ["trou", "exigence sans ligne de NCM"], ["orphelin", "identifiant absent du référentiel"],
+tableau(s, [["Alerte", "Signification"], ["trou", "exigence sans ligne de NCM"], ["conforme_implicite", "absente d'une NCM pré-filtrée : C par défaut"],
+  ["orphelin", "identifiant absent du référentiel"],
   ["doublon", "plusieurs lignes, même statut"], ["incoherence", "plusieurs lignes, statuts différents"], ["statut_inconnu", "valeur hors dictionnaire"],
   ["ecart_ouvert", "NC / PC sans action ni dérogation"]], 8.4, 2.3, 4.3, [1.6, 2.7], 11);
 
@@ -500,7 +502,7 @@ card(s, 0.6, 5.1, 12.1, 1.6, "Le fil conducteur", "Chaque piste garde les princi
 pres.addSection({ title: "Synthèse" });
 s = slide("Les règles de SILLAGE en une page", "Synthèse");
 tableau(s, [["Étape", "Objet", "Règle", "Paramètres"],
-  ["Identifiants", "motif, normalisation", "PRÉFIXE-NUMÉRO[suffixe] ; plages dépliées", "préfixes du référentiel"],
+  ["Identifiants", "motif, normalisation", "PRÉFIXE sép NUMÉRO[suffixe], préfixe composé ; écriture de la spec ; plages dépliées", "préfixes du référentiel"],
   ["Statuts", "dictionnaire → pivot", "valeur, tête, premier mot, mots-clés", "C, PC, NC, NA, ?"],
   ["Colonnes", "argmax par contenu", "identifiants ≥ 50 % ; statuts ≥ 40 % ; texte le plus long", "profil fournisseur"],
   ["Contrôles", "ensembles", "trous = S \\ N ; orphelins = N \\ S ; incohérence si |statuts| > 1", "—"],

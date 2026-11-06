@@ -1,0 +1,178 @@
+"""Cas « terrain » : une spécification PDF de texte (identifiants entre crochets,
+seuls sur leur ligne, préfixe composé « REQ_B2-3 », titres de section, en-tête
+et pied courants, exigence à cheval sur deux pages) et une NCM PDF en tableau
+pré-filtré (RR ID, DA ID, texte de l'exigence répété, Compliance, Comments,
+lignes de titre intercalées). Les fichiers sont fabriqués ici : aucune donnée
+fournisseur dans le dépôt."""
+import pytest
+
+from sillage.controles import CONFORME_IMPLICITE, TROU, controler
+from sillage.identifiants import MotifIdentifiant, deduire_motif
+from sillage.lecture_ncm import lire_ncm
+from sillage.modele import Statut
+from sillage.referentiel import lire_referentiel
+from sillage.statuts import DictionnaireStatuts
+
+fitz = pytest.importorskip("fitz")   # PyMuPDF, seulement pour fabriquer les PDF d'essai
+
+EN_TETE = "Appendix B2-3 - Control System High Level Requirements - DGT 165737 A"
+
+PAGES = [
+    [EN_TETE,
+     "5.1.2 Provide thrust and controlled primary power",
+     "**",
+     "This chapter describes the requirements for the sub-functions of the function",
+     "Provide thrust and energy :",
+     "- Control thrust (cf. §5.1.2.1)",
+     "[REQ_B2-3_15]",
+     "The engine control system must maintain normal engine operation free from",
+     "instability and/or loss of power, for any combination of accessory power",
+     "extraction and airframe bleed air within the engine acceptable limits.",
+     "[REQ_B2-3_16]",
+     "In case of abnormal condition leading to engine surge, the system shall provide",
+     "automatic recovery without pilot action.",
+     "5.1.2.1 Control thrust",
+     "5.1.2.1.1 Ratings",
+     "**",
+     "The ratings are defined within B2-1 Engine Technical Requirements.",
+     "[REQ_B2-3_18]",
+     "No ITT limiter shall be implemented in the FADEC logic (except during starting",
+     "Page 12 / 80"],
+    [EN_TETE,
+     "if needed).",
+     "[REQ_B2-3_128]",
+     "Control system accuracy, including transient behavior, software digitalization,",
+     "and control parameter sensors accuracy, shall be taken into account.",
+     "[REQ_B2-3_129] A minimum of four idle ratings shall be provisioned: ground idle,",
+     "flight idle based on WOW, approach idle and anti-ice idle.",
+     "5.1.2.2 Protect from thrust control malfunction",
+     "See DO-178C and CS 25.1309 for the applicable standards.",
+     "Page 13 / 80"],
+    [EN_TETE,
+     "[REQ_B2-3_34]",
+     "Last data set shall be delivered no later than 6 months before first flight.",
+     "Page 14 / 80"],
+]
+
+
+def _pdf_texte(chemin, pages):
+    doc = fitz.open()
+    for lignes in pages:
+        page = doc.new_page(width=595, height=842)
+        y = 50
+        for l in lignes:
+            page.insert_text((40, y), l, fontsize=9)
+            y += 14
+    doc.save(str(chemin))
+    doc.close()
+    return chemin
+
+
+NCM_LIGNES = [
+    ["RR ID", "DA ID", "DGT 165737 A", "Rolls-Royce Compliance", "Comments"],
+    ["127", "", "5.1.2.1.4.1 Auto-throttle and Auto thrust architecture", "", ""],
+    ["135", "[REQ_B2-3_34]", "Last data set shall be delivered no later than 6 months before first flight.",
+     "Compliant", "Should be transferred to SOW."],
+    ["150", "", "5.1.2.2.1 Inadvertent Shut Down", "", ""],
+    ["151", "[REQ_B2-3_16]", "In case of abnormal condition leading to engine surge, the system shall provide automatic recovery without pilot action.",
+     "Partially compliant", "Recovery logic to be agreed during PDP."],
+    ["194", "[REQ_B2-3_128]", "Control system accuracy, including transient behavior, software digitalization, and control parameter sensors accuracy, shall be taken into account.",
+     "N/A", "Requirement not applicable to RR."],
+    ["265", "[REQ_B2-3_129]", "A minimum of four idle ratings shall be provisioned: ground idle, flight idle based on WOW, approach idle and anti-ice idle.",
+     "", "Under discussion."],
+]
+
+
+def _pdf_ncm(chemin, lignes, par_page=4):
+    doc = fitz.open()
+    en_tete, donnees = lignes[0], lignes[1:]
+    largeurs = [40, 85, 220, 90, 120]
+    for debut in range(0, len(donnees), par_page):
+        page = doc.new_page(width=595, height=842)
+        page.insert_text((30, 30), "Rolls-Royce Non-Compliance Matrix - Rev4", fontsize=8)
+        page.insert_text((30, 42), "This document comes pre-filtered. Unless listed below, all other items can be assumed compliant.",
+                         fontsize=7)
+        y = 60
+        for row in [en_tete] + donnees[debut:debut + par_page]:
+            x = 30
+            for cell, w in zip(row, largeurs):
+                page.draw_rect(fitz.Rect(x, y, x + w, y + 60), color=(0, 0, 0), width=0.8)
+                page.insert_textbox(fitz.Rect(x + 2, y + 2, x + w - 2, y + 60), str(cell), fontsize=6)
+                x += w
+            y += 60
+    doc.save(str(chemin))
+    doc.close()
+    return chemin
+
+
+def test_identifiants_a_prefixe_compose():
+    g = MotifIdentifiant()
+    assert g.extraire("[REQ_B2-3_15]") == ["REQ_B2-3-15"]          # générique : séparateur normalisé
+    m = deduire_motif(["[REQ_B2-3_15]", "[REQ_B2-3_128]"])
+    assert m.prefixes == {"REQ_B2-3"}
+    assert m.extraire("[REQ_B2-3_15]") == ["REQ_B2-3_15"]          # écriture du référentiel
+    assert m.extraire("REQ-B2-3-015 ; req_b2_3_16") == ["REQ_B2-3_15", "REQ_B2-3_16"]
+    assert m.extraire("REQ_B2-3_15 à REQ_B2-3_17") == ["REQ_B2-3_15", "REQ_B2-3_16", "REQ_B2-3_17"]
+    assert m.extraire("see DO-178C, CS 25.1309 and B2-1 ratings") == []
+    assert m.commence_par_id("[REQ_B2-3_15]") == "REQ_B2-3_15"
+    assert m.commence_par_id("(REQ_B2-3_15) texte") == "REQ_B2-3_15"
+    assert m.canoniser("REQ_B2-3-15") == "REQ_B2-3_15"
+    # un préfixe simple garde ses plages abrégées avec tiret
+    s = MotifIdentifiant({"REQ"})
+    assert s.extraire("REQ-100-103") == ["REQ-100", "REQ-101", "REQ-102", "REQ-103"]
+
+
+def test_spec_pdf_texte(tmp_path):
+    ref = lire_referentiel(_pdf_texte(tmp_path / "spec.pdf", PAGES))
+    assert ref.ids == ["REQ_B2-3_15", "REQ_B2-3_16", "REQ_B2-3_18", "REQ_B2-3_34", "REQ_B2-3_128", "REQ_B2-3_129"]
+    e = ref.par_id()
+    assert e["REQ_B2-3_15"].texte.startswith("The engine control system must maintain")
+    assert e["REQ_B2-3_15"].texte.endswith("acceptable limits.")
+    assert "\n" not in e["REQ_B2-3_15"].texte                      # lignes recollées par un espace
+    # l'exigence 18 est à cheval sur deux pages : ni l'en-tête courant ni le numéro de page ne s'y glissent
+    assert e["REQ_B2-3_18"].texte == "No ITT limiter shall be implemented in the FADEC logic (except during starting if needed)."
+    # le titre de section ferme l'exigence : le texte d'introduction du chapitre n'est pas une exigence
+    assert "Protect from thrust" not in e["REQ_B2-3_129"].texte
+    assert "DO-178C" not in e["REQ_B2-3_129"].texte
+    # identifiant suivi du texte sur la même ligne
+    assert e["REQ_B2-3_129"].texte.startswith("A minimum of four idle ratings")
+    assert e["REQ_B2-3_18"].reference == "page 1"
+    assert ref.motif.prefixes == {"REQ_B2-3"}
+
+
+def test_ncm_pdf_prefiltree(tmp_path):
+    ref = lire_referentiel(_pdf_texte(tmp_path / "spec.pdf", PAGES))
+    ncm = lire_ncm(_pdf_ncm(tmp_path / "ncm.pdf", NCM_LIGNES), ref.motif, DictionnaireStatuts(),
+                   ids_referentiel=ref.ids, textes_referentiel={e.id: e.texte for e in ref.exigences})
+    assert ncm.ids == ["REQ_B2-3_34", "REQ_B2-3_16", "REQ_B2-3_128", "REQ_B2-3_129"]
+    par = ncm.par_id()
+    assert par["REQ_B2-3_34"][0].statut is Statut.CONFORME
+    assert par["REQ_B2-3_16"][0].statut is Statut.PARTIEL
+    assert par["REQ_B2-3_128"][0].statut is Statut.NON_APPLICABLE
+    assert par["REQ_B2-3_129"][0].statut is Statut.INCONNU          # cellule de statut vide
+    # la colonne qui répète l'exigence n'est pas la justification : ce sont les commentaires
+    assert ncm.diagnostic.colonnes["exigence"] == "DGT 165737 A"
+    assert par["REQ_B2-3_34"][0].justification == "Should be transferred to SOW."
+    assert ncm.diagnostic.colonnes["statut"] == "Rolls-Royce Compliance"
+    assert ncm.diagnostic.prefiltree and ncm.prefiltree
+    assert ncm.diagnostic.taux_couverture == pytest.approx(4 / 6)
+    assert not ncm.diagnostic.statuts_inconnus                       # une cellule vide n'est pas une valeur inconnue
+
+    g = controler(ref, ncm)
+    par_g = {l.id: l for l in g.lignes}
+    assert par_g["REQ_B2-3_15"].statut is Statut.CONFORME and CONFORME_IMPLICITE in par_g["REQ_B2-3_15"].alertes
+    assert par_g["REQ_B2-3_18"].statut is Statut.CONFORME
+    assert g.resume()[TROU] == 0 and g.resume()[CONFORME_IMPLICITE] == 2
+    g2 = controler(ref, ncm, prefiltree=False)
+    assert g2.resume()[TROU] == 2 and g2.resume()[CONFORME_IMPLICITE] == 0
+
+
+def test_pdf_scanne_signale(tmp_path):
+    doc = fitz.open()
+    doc.new_page()
+    doc.save(str(tmp_path / "scan.pdf"))
+    doc.close()
+    with pytest.raises(ValueError, match="sans couche texte"):
+        lire_referentiel(tmp_path / "scan.pdf")
+    ncm = lire_ncm(tmp_path / "scan.pdf", MotifIdentifiant({"REQ"}), DictionnaireStatuts())
+    assert any("scanné" in a for a in ncm.diagnostic.avertissements)

@@ -134,7 +134,19 @@ connaît la réponse, en s'aidant de la distribution des scores affichée.
 
 Le référentiel (`--spec`) est la spécification : un tableur avec une colonne
 d'identifiants (et, si possible, le texte de l'exigence et le paragraphe de
-norme), ou un document dont les paragraphes commencent par l'identifiant.
+norme), ou un document (PDF de texte, Word, texte) dont les paragraphes
+commencent par l'identifiant — nu ou entre crochets, seul sur sa ligne ou
+suivi du texte ; le texte court jusqu'au prochain identifiant ou titre de
+section. L'identifiant peut avoir un préfixe composé (« [REQ_B2-3_15] ») :
+le numéro est le dernier groupe de chiffres, et toutes les écritures du
+fournisseur (« REQ-B2-3-015 », « req_b2_3_15 ») se ramènent à celle de la
+spécification. Un PDF sans couche texte (scan) est signalé comme tel.
+
+Une NCM qui se déclare pré-filtrée (« unless listed below, all other items
+can be assumed compliant ») est reconnue : les exigences absentes reçoivent
+le statut C avec l'alerte « conforme implicite » au lieu de « trou »
+(`--prefiltree` / `--non-prefiltree` pour forcer ; case à cocher dans
+l'interface).
 
 Données utilisateur (dictionnaire des statuts, profils) :
 `%LOCALAPPDATA%\sillage` sous Windows, `~/.sillage` ailleurs, ou le dossier

@@ -41,10 +41,11 @@ logger = logging.getLogger("sillage.gui")
 
 EXT_DOCUMENTS = (".docx", ".pdf", ".txt", ".md", ".xlsx", ".xlsm", ".csv", ".pptx")
 COULEURS_STATUT = {"C": "#c6efce", "PC": "#ffeb9c", "NC": "#ffc7ce", "NA": "#e7e6e6", "?": "#fff2cc"}
-ALERTES = ["trou", "orphelin", "doublon", "incoherence", "statut_inconnu", "ecart_ouvert",
+ALERTES = ["trou", "conforme_implicite", "orphelin", "doublon", "incoherence", "statut_inconnu", "ecart_ouvert",
            "c_sans_appui", "c_faible", "valeurs_absentes", "affaiblissement", "impact_norme"]
 LIBELLES_ALERTES = {
-    "trou": "trou (exigence sans ligne)", "orphelin": "orphelin (identifiant inconnu)", "doublon": "doublon",
+    "trou": "trou (exigence sans ligne)", "conforme_implicite": "conforme implicite (absente de la NCM pré-filtrée)",
+    "orphelin": "orphelin (identifiant inconnu)", "doublon": "doublon",
     "incoherence": "incohérence (statuts différents)", "statut_inconnu": "statut inconnu",
     "ecart_ouvert": "écart ouvert (ni action ni dérogation)", "c_sans_appui": "« C » sans appui",
     "c_faible": "« C » à appui faible", "valeurs_absentes": "valeurs chiffrées absentes",
@@ -153,6 +154,7 @@ class Application(tk.Tk):
         self.v_spec = tk.StringVar(value=r.get("spec", ""))
         self.v_projet = tk.StringVar(value=r.get("projet", ""))
         self.v_signee = tk.BooleanVar(value=False)
+        self.v_prefiltree = tk.BooleanVar(value=False)
         self.v_fournisseur = tk.StringVar(value=r.get("fournisseur", ""))
         self.v_ncm = tk.StringVar(value=r.get("ncm", ""))
         self.v_revision = tk.StringVar(value="")
@@ -187,7 +189,11 @@ class Application(tk.Tk):
         ligne(2, "Documents du fournisseur :", self.v_documents, self._choisir_documents)
         ligne(2, "Révision :", self.v_revision, None, colonne=3, largeur=28)
         ligne(3, "Index (moteur) :", self.v_index, self._choisir_index)
-        ttk.Checkbutton(projet, text="NCM finale signée", variable=self.v_signee).grid(row=3, column=3, columnspan=2, sticky="w")
+        cases = ttk.Frame(projet)
+        cases.grid(row=3, column=3, columnspan=2, sticky="w")
+        ttk.Checkbutton(cases, text="NCM finale signée", variable=self.v_signee).pack(side="left")
+        ttk.Checkbutton(cases, text="NCM pré-filtrée (absentes réputées conformes)", variable=self.v_prefiltree,
+                        command=lambda: self.calculer_grille() if self.ncm is not None else None).pack(side="left", padx=(12, 0))
 
         # actions : les étapes sur une rangée, les outils et réglages sur la suivante
         actions = ttk.Frame(self)
@@ -455,7 +461,8 @@ class Application(tk.Tk):
             raise ValueError("choisissez la NCM à lire")
         profil = Profil.charger(fournisseur) if fournisseur else None
         return lire_ncm(ncm_f, motif=ref.motif, dico=DictionnaireStatuts.charger(), profil=profil,
-                        fournisseur=fournisseur, revision=revision, ids_referentiel=ref.ids)
+                        fournisseur=fournisseur, revision=revision, ids_referentiel=ref.ids,
+                        textes_referentiel={e.id: e.texte for e in ref.exigences})
 
     def lire_ncm(self):
         self._enregistrer_reglages()
@@ -473,6 +480,10 @@ class Application(tk.Tk):
                                       "\n" + ncm.diagnostic.texte())
             self.onglets.select(0)
             self._journal(f"NCM lue : {len(ncm.lignes)} lignes pivot, {ncm.diagnostic.taux_couverture:.0%} du référentiel retrouvé")
+            if ncm.diagnostic.prefiltree and not self.v_prefiltree.get():
+                self.v_prefiltree.set(True)
+                self._journal("La NCM se déclare pré-filtrée : les exigences absentes sont réputées conformes "
+                              "(case « NCM pré-filtrée » cochée ; décochez-la pour les traiter en trous)")
             if ncm.diagnostic.statuts_inconnus:
                 if self.dialogue_statuts(ncm.diagnostic.statuts_inconnus):
                     self.lire_ncm()
@@ -488,7 +499,7 @@ class Application(tk.Tk):
             return
         from .controles import controler
         self.grille = controler(self.ref, self.ncm, campagne=self.campagne, releve=self.releve, tracabilite=self.tracabilite,
-                                fiches=self.fiches)
+                                fiches=self.fiches, prefiltree=self.v_prefiltree.get())
         try:
             from .memoire import Memoire
             with Memoire() as mem:

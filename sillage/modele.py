@@ -135,6 +135,7 @@ class Diagnostic:
     chemin: str = CHEMIN_TABLEAU
     ids_referentiel: int = 0         # taille du référentiel si fourni
     ids_retrouves: int = 0           # identifiants du référentiel présents dans la NCM
+    prefiltree: bool = False         # la NCM se déclare pré-filtrée : les exigences absentes sont réputées conformes
     avertissements: List[str] = field(default_factory=list)
 
     @property
@@ -164,6 +165,8 @@ class Diagnostic:
         if self.statuts_inconnus:
             vals = ", ".join(f"« {v} » ×{n}" for v, n in sorted(self.statuts_inconnus.items(), key=lambda kv: -kv[1]))
             lignes.append("Statuts inconnus : " + vals)
+        if self.prefiltree:
+            lignes.append("NCM pré-filtrée : le document déclare conformes les exigences qu'il ne liste pas")
         for a in self.avertissements:
             lignes.append("⚠ " + a)
         return "\n".join(lignes)
@@ -176,6 +179,7 @@ class NCM:
     fichier: str = ""
     lignes: List[LigneNCM] = field(default_factory=list)
     diagnostic: Diagnostic = field(default_factory=Diagnostic)
+    prefiltree: bool = False         # option de lecture : les exigences absentes sont réputées conformes (voir controles)
 
     def par_id(self) -> Dict[str, List[LigneNCM]]:
         d: Dict[str, List[LigneNCM]] = {}

@@ -29,6 +29,14 @@ LONGUEUR_ID_MAX = 80  # au-delà, une cellule qui cite un identifiant est du tex
 _MOTS_STATUT = ("statut", "status", "compliance", "conformite", "verdict", "result", "resultat", "reponse",
                 "response", "answer", "position", "assessment")
 _MOTS_JUSTIFICATION = ("justif", "rationale", "explanation", "explication", "argument", "evidence", "preuve")
+# La NCM se déclare pré-filtrée : « unless listed below, all other items can be assumed compliant ».
+_PREFILTREE = re.compile(r"pre-?\s?filtered|assumed (?:to be )?compliant|deemed compliant|r[ée]put[ée]e?s? conformes?"
+                         r"|pr[ée]-?\s?filtr[ée]e?|consid[ée]r[ée]e?s? (?:comme )?conformes?", re.IGNORECASE)
+SEUIL_EXIGENCE = 0.5  # part des lignes dont la cellule répète le texte de l'exigence pour y voir la colonne « exigence »
+
+
+def _debut(texte: str, n: int = 40) -> str:
+    return re.sub(r"[^a-z0-9]", "", (texte or "").lower())[:n]
 
 
 @dataclass
@@ -66,8 +74,13 @@ def _cellule(ligne: Sequence[str], i: Optional[int]) -> str:
 
 
 def reconnaitre_colonnes(tableau: Tableau, motif: MotifIdentifiant, dico: DictionnaireStatuts,
-                         profil: Optional[Profil] = None) -> Optional[Colonnes]:
-    """Colonnes du tableau, ou None s'il ne ressemble pas à une NCM."""
+                         profil: Optional[Profil] = None,
+                         textes_ref: Optional[Dict[str, str]] = None) -> Optional[Colonnes]:
+    """Colonnes du tableau, ou None s'il ne ressemble pas à une NCM.
+
+    `textes_ref` (identifiant → texte de l'exigence du référentiel) permet de
+    reconnaître la colonne qui **répète l'exigence** (fréquente dans les NCM
+    fournisseurs) : elle n'est jamais prise pour la justification."""
     lignes = tableau.lignes
     if not lignes:
         return None
@@ -137,6 +150,25 @@ def reconnaitre_colonnes(tableau: Tableau, motif: MotifIdentifiant, dico: Dictio
                 pris.add(c)
                 break
 
+    # colonne qui répète le texte de l'exigence : reconnue par comparaison avec le référentiel
+    if textes_ref:
+        for c in range(nb):
+            if c in pris:
+                continue
+            comparables = concordants = 0
+            for l in donnees:
+                ids = motif.extraire(_cellule(l, col_id)) if len(_cellule(l, col_id)) <= LONGUEUR_ID_MAX else []
+                attendu = _debut(textes_ref.get(ids[0], "")) if ids else ""
+                if not attendu or len(attendu) < 12:
+                    continue
+                comparables += 1
+                if _debut(_cellule(l, c)) == attendu:
+                    concordants += 1
+            if comparables and concordants >= SEUIL_EXIGENCE * comparables:
+                autres["exigence"] = c
+                pris.add(c)
+                break
+
     # justification : colonne de texte le plus long parmi les autres (commentaire inclus si rien d'autre)
     col_just = None
     meilleure_longueur = 0.0
@@ -171,8 +203,15 @@ def revision_depuis_nom(nom: str) -> str:
 
 def lire_ncm(chemin, motif: Optional[MotifIdentifiant] = None, dico: Optional[DictionnaireStatuts] = None,
              profil: Optional[Profil] = None, fournisseur: str = "", revision: str = "",
-             ids_referentiel: Optional[Sequence[str]] = None) -> NCM:
-    """Lit un fichier de NCM et renvoie ses lignes pivot avec leur diagnostic."""
+             ids_referentiel: Optional[Sequence[str]] = None,
+             textes_referentiel: Optional[Dict[str, str]] = None) -> NCM:
+    """Lit un fichier de NCM et renvoie ses lignes pivot avec leur diagnostic.
+
+    `textes_referentiel` (identifiant → texte) sert à reconnaître la colonne
+    qui répète l'exigence. Si le document se déclare pré-filtré (« unless
+    listed below, all other items can be assumed compliant »), le diagnostic
+    le note et `ncm.prefiltree` est posé : les contrôles traitent alors les
+    exigences absentes comme conformes implicites."""
     motif = motif or MotifIdentifiant()
     dico = dico or DictionnaireStatuts.charger()
     chemin = Path(chemin)
@@ -184,7 +223,7 @@ def lire_ncm(chemin, motif: Optional[MotifIdentifiant] = None, dico: Optional[Di
     diag.tableaux_lus = len(tableaux)
     colonnes_retenues: Optional[Colonnes] = None
     for t in tableaux:
-        cols = reconnaitre_colonnes(t, motif, dico, profil)
+        cols = reconnaitre_colonnes(t, motif, dico, profil, textes_referentiel)
         if cols is None:
             continue
         diag.tableaux_retenus += 1
@@ -194,7 +233,13 @@ def lire_ncm(chemin, motif: Optional[MotifIdentifiant] = None, dico: Optional[Di
             diag.colonnes = cols.roles()
         _lire_lignes(t, cols, motif, dico, ncm, diag)
 
+    diag.prefiltree = ncm.prefiltree = _declaree_prefiltree(chemin, tableaux)
     if diag.tableaux_retenus == 0:
+        if chemin.suffix.lower() == ".pdf":
+            from .textes import pdf_sans_texte
+            if pdf_sans_texte(chemin):
+                diag.avertissements.append("PDF sans couche texte (document scanné) : rien n'est lisible sans OCR ; "
+                                           "demander la NCM sous forme de tableur ou de PDF texte")
         diag.avertissements.append("aucun tableau ne contient une colonne d'identifiants d'exigences")
     if colonnes_retenues is not None and colonnes_retenues.statut is None:
         diag.avertissements.append("aucune colonne de statuts reconnue : toutes les lignes sont « ? » "
@@ -209,6 +254,20 @@ def lire_ncm(chemin, motif: Optional[MotifIdentifiant] = None, dico: Optional[Di
             diag.avertissements.append("moins de la moitié des identifiants du référentiel sont cités : "
                                        "NCM partielle, motif d'identifiant inadapté, ou mauvais document")
     return ncm
+
+
+def _declaree_prefiltree(chemin: Path, tableaux: Sequence[Tableau]) -> bool:
+    """Vrai si le document annonce que les exigences non listées sont conformes
+    (phrase cherchée dans les cellules des tableaux et, pour un PDF ou un
+    Word, dans le texte hors tableaux)."""
+    textes = [c for t in tableaux for l in t.lignes for c in l if c]
+    if chemin.suffix.lower() in (".pdf", ".docx"):
+        try:
+            from .textes import paragraphes
+            textes.extend(p.texte for p in paragraphes(chemin))
+        except Exception:   # un document illisible hors tableaux n'empêche pas la lecture
+            pass
+    return any(_PREFILTREE.search(x) for x in textes)
 
 
 def _lire_lignes(t: Tableau, cols: Colonnes, motif: MotifIdentifiant, dico: DictionnaireStatuts,

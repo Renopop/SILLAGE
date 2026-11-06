@@ -2,6 +2,38 @@
 
 Numérotation MAJEUR.MINEUR.CORRECTIF ; version dans `sillage/version.py`.
 
+## 0.8.0 — 2026-11-06 (terrain : spécifications PDF, identifiants composés, NCM pré-filtrées)
+
+Premier retour terrain : SILLAGE ne trouvait aucune exigence dans une
+spécification PDF réelle (identifiants « [REQ_B2-3_15] » seuls sur leur
+ligne) ni dans la NCM correspondante.
+
+- Identifiants : préfixe composé accepté (« REQ_B2-3 » — le code de
+  l'annexe en fait partie ; le numéro est le dernier groupe de chiffres),
+  crochets et parenthèses tolérés en tête de ligne. La forme normalisée
+  reprend l'écriture de la spécification (« REQ_B2-3_15 ») ; les variantes
+  du fournisseur (« REQ-B2-3-015 », « req_b2_3_15 ») s'y ramènent. Sans
+  référentiel, le séparateur est normalisé en « - » comme avant.
+- Spécification PDF : lecture ligne par ligne (une page n'est plus un seul
+  paragraphe), titres de section reconnus par leur numérotation, en-tête et
+  pied courants et numéros de page ignorés, exigence à cheval sur deux pages
+  recollée ; identifiant suivi du texte sur la même ligne ou seul sur sa
+  ligne. Un PDF sans couche texte (scan) est signalé comme tel, pour la
+  spécification comme pour la NCM.
+- NCM : la colonne qui répète le texte de l'exigence (fréquente) est
+  reconnue par comparaison avec le référentiel et n'est plus prise pour la
+  justification ; une cellule de statut vide n'est plus comptée comme
+  valeur inconnue.
+- NCM pré-filtrée (« unless listed below, all other items can be assumed
+  compliant ») : détectée dans le document ; les exigences absentes
+  reçoivent le statut C avec l'alerte « conforme_implicite » au lieu de
+  « trou ». `--prefiltree` / `--non-prefiltree` en ligne de commande, case
+  « NCM pré-filtrée » dans l'interface (cochée automatiquement à la
+  détection), ligne dédiée dans le résumé.
+- `tests/test_terrain.py` : spécification PDF et NCM PDF fabriquées sous la
+  forme observée (titres, « ** », en-têtes courants, exigence sur deux
+  pages, lignes de titre dans le tableau, statuts vides).
+
 ## 0.7.2 — 2026-11-06 (documentation : commentaires, présentation)
 
 - Revue de tous les commentaires et docstrings du code propre à SILLAGE

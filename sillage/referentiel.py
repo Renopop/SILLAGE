@@ -57,9 +57,20 @@ def lire_referentiel(chemin, motif: Optional[MotifIdentifiant] = None) -> Refere
         exigences = _depuis_paragraphes(p, paragraphes_pdf(p), motif or MotifIdentifiant())
     else:
         raise ValueError(f"format de référentiel non pris en charge : {ext or '(sans extension)'}")
+    if motif is None:
+        # le motif se déduit des identifiants tels que la spécification les écrit,
+        # et les exigences prennent cette écriture pour forme normalisée
+        motif = deduire_motif(e.id_brut for e in exigences)
+        for e in exigences:
+            e.id = motif.canoniser(e.id)
     exigences = _dedoublonner(exigences)
     ref = Referentiel(source=str(p), exigences=exigences)
-    ref.motif = motif or deduire_motif(ref.ids)
+    ref.motif = motif
+    if ext == ".pdf" and not exigences:
+        from .textes import pdf_sans_texte
+        if pdf_sans_texte(p):
+            raise ValueError(f"{p.name} : PDF sans couche texte (document scanné) — passer par l'OCR "
+                             f"ou demander la spécification sous forme de fichier texte")
     return ref
 
 
@@ -121,18 +132,23 @@ def _depuis_tableur(p: Path, motif: MotifIdentifiant) -> List[Exigence]:
 
 # --- documents -------------------------------------------------------------------
 def _depuis_paragraphes(p: Path, paras: Iterable[Para], motif: MotifIdentifiant) -> List[Exigence]:
+    """Un paragraphe (ou une ligne de PDF) qui commence par un identifiant —
+    nu, entre crochets ou parenthèses, seul sur sa ligne ou suivi du texte —
+    ouvre une exigence ; ce qui suit la complète jusqu'au prochain identifiant
+    en tête ou au prochain titre de section. Un identifiant cité au milieu du
+    texte (« voir REQ-12 ») n'ouvre rien."""
     out: List[Exigence] = []
     courante: Optional[Exigence] = None
     for para in paras:
-        # une ligne de PDF peut contenir plusieurs exigences : on coupe devant chaque identifiant en tête de ligne
         ident = motif.commence_par_id(para.texte)
         if ident:
             occ = motif.trouver(para.texte)
-            texte = para.texte[occ[0][3]:].lstrip(" \t:-–—.·")
+            texte = para.texte[occ[0][3]:].lstrip(" \t:-–—.·])>»\"")
             courante = Exigence(id=ident, texte=texte, id_brut=occ[0][1], source=str(p), reference=para.reference)
             out.append(courante)
         elif para.titre:
             courante = None
         elif courante is not None:
-            courante.texte = (courante.texte + "\n" + para.texte).strip()
+            liaison = " " if para.fragment else "\n"
+            courante.texte = (courante.texte + liaison + para.texte).strip()
     return out

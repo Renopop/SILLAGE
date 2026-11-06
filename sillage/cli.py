@@ -42,7 +42,8 @@ def _lire(chemin: str, spec: Optional[str], fournisseur: str, revision: str, san
     motif, ref = _motif_et_ref(spec)
     profil = None if (sans_profil or not fournisseur) else Profil.charger(fournisseur)
     ncm = lire_ncm(chemin, motif=motif, dico=DictionnaireStatuts.charger(), profil=profil,
-                   fournisseur=fournisseur, revision=revision, ids_referentiel=ref.ids if ref else None)
+                   fournisseur=fournisseur, revision=revision, ids_referentiel=ref.ids if ref else None,
+                   textes_referentiel={e.id: e.texte for e in ref.exigences} if ref else None)
     return ncm, ref
 
 
@@ -109,8 +110,14 @@ def cmd_grille(a) -> int:
     from .controles import controler
     from .grille import exporter_grille
     ncm, ref = _lire(a.ncm, a.spec, a.fournisseur, a.revision, a.sans_profil)
+    if a.prefiltree:
+        ncm.prefiltree = True
+    elif a.non_prefiltree:
+        ncm.prefiltree = False
     print(f"{VERSION_LABEL} — référentiel : {len(ref)} exigences ({Path(a.spec).name})")
     print(ncm.diagnostic.texte())
+    if ncm.prefiltree:
+        print("NCM pré-filtrée : les exigences absentes sont réputées conformes (alerte « conforme_implicite »)")
     campagne = _campagne(a, ref, ncm)
     if campagne is not None:
         print(campagne.texte_resume())
@@ -466,6 +473,9 @@ def construire_parseur() -> argparse.ArgumentParser:
     commun(q, spec_obligatoire=True)
     q.add_argument("--revision", default="")
     q.add_argument("--sortie", help="classeur de sortie (défaut : <ncm>_grille.xlsx)")
+    q.add_argument("--prefiltree", action="store_true",
+                   help="NCM pré-filtrée : les exigences absentes sont réputées conformes (déduit du document sinon)")
+    q.add_argument("--non-prefiltree", action="store_true", help="forcer le traitement des absentes en trous")
     q.add_argument("--verifier", action="store_true", help="lot 3 : vérifier les « C » dans la spécification fournisseur (moteur embarqué)")
     q.add_argument("--appuis", metavar="JSON", help="lot 3 : reprendre une campagne d'appuis enregistrée par « appui --json »")
     q.add_argument("--affaiblissements", action="append", metavar="FICHIER", help="lot 3 : documents du fournisseur à passer au crible lexical (répétable)")

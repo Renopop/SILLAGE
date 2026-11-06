@@ -17,6 +17,19 @@ class Para:
     texte: str
     reference: str = ""     # paragraphe n, page n, table k ligne r, feuille x ligne r
     titre: bool = False
+    fragment: bool = False  # ligne d'un paragraphe (PDF) : se recolle à la précédente par un espace
+
+
+# Titre de section : « 5.1.2 Control thrust », « 3. Alimentation », « Chapter 5 », « Annex A ».
+_TITRE = re.compile(r"^(?:\d{1,2}(?:\.\d{1,3}){1,6}\.?\s+[^\W\d]|\d{1,2}\.\s+[^\W\d]"
+                    r"|(?:chapter|chapitre|section|annex|annexe|appendix)\s+[A-Z0-9])", re.IGNORECASE)
+# Bruit de mise en page : marques « ** », filets, numéros de page.
+_BRUIT = re.compile(r"^(?:\*+|[-–—_=·]+|\d{1,4}|page\s*\d+(?:\s*(?:/|of|sur|de)\s*\d+)?|\d{1,4}\s*/\s*\d{1,4})$",
+                    re.IGNORECASE)
+
+
+def est_titre(ligne: str) -> bool:
+    return bool(_TITRE.match(ligne.strip()))
 
 
 def paragraphes_docx(p: Path) -> List[Para]:
@@ -55,16 +68,34 @@ def paragraphes_texte(p: Path) -> List[Para]:
 
 
 def paragraphes_pdf(p: Path) -> List[Para]:
+    """Une `Para` par ligne de texte (fragment), les titres de section repérés
+    par leur numérotation. Les lignes répétées sur au moins trois pages
+    (en-tête et pied courants) et le bruit de mise en page (« ** », numéros
+    de page) sont ignorés. Un PDF sans couche texte ne donne rien : c'est un
+    scan, à passer par l'OCR ou à demander sous forme de fichier texte."""
     import pdfplumber
+    from collections import Counter
     out = []
     with pdfplumber.open(str(p)) as pdf:
-        for n, page in enumerate(pdf.pages, start=1):
-            texte = page.extract_text() or ""
-            for bloc in re.split(r"\n\s*\n", texte):
-                lignes = [x.strip() for x in bloc.splitlines() if x.strip()]
-                if lignes:
-                    out.append(Para(" ".join(lignes), f"page {n}"))
+        pages = [(page.extract_text() or "") for page in pdf.pages]
+    compte = Counter()
+    for texte in pages:
+        compte.update({x.strip() for x in texte.splitlines() if x.strip()})
+    courantes = {l for l, n in compte.items() if n >= 3} if len(pages) >= 3 else set()
+    for n, texte in enumerate(pages, start=1):
+        for ligne in texte.splitlines():
+            l = ligne.strip()
+            if not l or l in courantes or _BRUIT.fullmatch(l):
+                continue
+            out.append(Para(l, f"page {n}", titre=est_titre(l), fragment=True))
     return out
+
+
+def pdf_sans_texte(p: Path) -> bool:
+    """Vrai si aucune page du PDF n'a de couche texte (document scanné)."""
+    import pdfplumber
+    with pdfplumber.open(str(p)) as pdf:
+        return not any((page.extract_text() or "").strip() for page in pdf.pages)
 
 
 def paragraphes_tableur(p: Path) -> List[Para]:

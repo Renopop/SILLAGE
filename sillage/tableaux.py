@@ -168,18 +168,23 @@ def tableau_par_alignements(page, fichier: str, numero_page: int) -> List[Tablea
     return [t] if len(t.lignes) >= 2 else []
 
 
-def lire_pdf(chemin: Path, ocr: bool = False, alignements: bool = False) -> List[Tableau]:
-    """Tableaux détectés par pdfplumber ; avec `ocr`, les pages sans couche
-    texte passent par l'OCR de secours et leurs tableaux sont reconstruits
-    depuis le texte rendu (voir `ocr.tableaux_depuis_texte`). Avec
-    `alignements`, le quadrillage est ignoré et chaque page de texte est lue
-    ligne par ligne (`tableau_par_alignements`) : c'est le repli quand les
-    traits détectés ne donnent rien d'exploitable (PDF scanné puis OCRisé)."""
+def lire_pdf(chemin: Path, ocr=False, alignements: bool = False) -> List[Tableau]:
+    """Tableaux détectés par pdfplumber ; avec `ocr` vrai, les pages sans
+    couche texte passent par l'OCR de secours et leurs tableaux sont
+    reconstruits depuis le texte rendu (voir `ocr.tableaux_depuis_texte`) ;
+    avec `ocr == "forcer"`, toutes les pages passent par l'OCR, couche texte
+    ignorée. Avec `alignements`, le quadrillage est ignoré et chaque page de
+    texte est lue ligne par ligne (`tableau_par_alignements`) : c'est le
+    repli quand les traits détectés ne donnent rien d'exploitable."""
     import pdfplumber
     bruts: List[Tableau] = []
     scannees: List[int] = []
+    forcer = ocr == "forcer"
     with pdfplumber.open(str(chemin)) as pdf:
         for p, page in enumerate(pdf.pages, start=1):
+            if forcer:
+                scannees.append(p)
+                continue
             tables = []
             if not alignements:
                 try:
@@ -270,9 +275,10 @@ LECTEURS = {
 }
 
 
-def lire_tableaux(chemin, ocr: bool = False, alignements: bool = False) -> List[Tableau]:
-    """`ocr` : OCR de secours des pages scannées ; `alignements` : lecture
-    ligne par ligne sans tenir compte du quadrillage (PDF seulement)."""
+def lire_tableaux(chemin, ocr=False, alignements: bool = False) -> List[Tableau]:
+    """`ocr` : OCR de secours des pages scannées (vrai) ou de toutes les pages
+    (« forcer ») ; `alignements` : lecture ligne par ligne sans tenir compte
+    du quadrillage (PDF seulement)."""
     p = Path(chemin)
     lecteur = LECTEURS.get(p.suffix.lower())
     if lecteur is None:

@@ -12,6 +12,7 @@ Deux sources :
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional
@@ -21,6 +22,8 @@ from .modele import Exigence
 from .profils import normaliser_en_tete
 from .tableaux import lire_tableaux
 from .textes import Para, paragraphes_docx, paragraphes_pdf, paragraphes_texte
+
+logger = logging.getLogger("sillage.referentiel")
 
 _MOTS_NORME = ("norme", "standard", "cs 25", "cs25", "cs-25", "far", "part 25", "trace", "tracab", "regulation",
                "reglement", "règlement", "exigence source", "source requirement", "applicable")
@@ -44,9 +47,11 @@ class Referentiel:
         return len(self.exigences)
 
 
-def lire_referentiel(chemin, motif: Optional[MotifIdentifiant] = None, ocr: bool = False) -> Referentiel:
+def lire_referentiel(chemin, motif: Optional[MotifIdentifiant] = None, ocr=False) -> Referentiel:
     """`ocr` : OCR de secours des pages scannées d'une spécification PDF
-    (appels payants au modèle Vision, voir `sillage.ocr`)."""
+    (appels payants au modèle Vision, voir `sillage.ocr`). Vrai : pages sans
+    couche texte, puis toutes les pages si la couche texte ne livre aucune
+    exigence (scan OCRisé par le scanner) ; « forcer » : toutes les pages."""
     p = Path(chemin)
     ext = p.suffix.lower()
     if ext in (".xlsx", ".xlsm", ".csv", ".tsv"):
@@ -58,9 +63,14 @@ def lire_referentiel(chemin, motif: Optional[MotifIdentifiant] = None, ocr: bool
     elif ext == ".pdf":
         try:
             paras = paragraphes_pdf(p, ocr=ocr)
+            exigences = _depuis_paragraphes(p, paras, motif or MotifIdentifiant())
+            if not exigences and ocr and ocr != "forcer":
+                # couche texte présente mais inexploitable (scan OCRisé par le scanner) : tout relire
+                logger.warning("%s : aucune exigence dans la couche texte, OCR de secours sur toutes les pages", p.name)
+                ocr = "forcer"
+                exigences = _depuis_paragraphes(p, paragraphes_pdf(p, ocr=ocr), motif or MotifIdentifiant())
         except RuntimeError as exc:   # OCR indisponible ou incomplet
             raise ValueError(f"{p.name} : {exc}") from exc
-        exigences = _depuis_paragraphes(p, paras, motif or MotifIdentifiant())
     else:
         raise ValueError(f"format de référentiel non pris en charge : {ext or '(sans extension)'}")
     if motif is None:
@@ -74,11 +84,11 @@ def lire_referentiel(chemin, motif: Optional[MotifIdentifiant] = None, ocr: bool
     ref.motif = motif
     if ext == ".pdf" and not exigences:
         from .textes import pdf_sans_texte
+        if ocr:
+            raise ValueError(f"{p.name} : l'OCR de secours n'a trouvé aucune exigence (aucun identifiant en tête de ligne)")
         if pdf_sans_texte(p):
-            raise ValueError(f"{p.name} : PDF sans couche texte (document scanné) — " +
-                             ("l'OCR de secours n'y a trouvé aucune exigence" if ocr else
-                              "activer l'OCR de secours (--ocr, case « OCR de secours ») "
-                              "ou demander la spécification sous forme de fichier texte"))
+            raise ValueError(f"{p.name} : PDF sans couche texte (document scanné) — activer l'OCR de secours "
+                             f"(--ocr, case « OCR de secours ») ou demander la spécification sous forme de fichier texte")
     return ref
 
 

@@ -2,6 +2,35 @@
 
 Numérotation MAJEUR.MINEUR.CORRECTIF ; version dans `sillage/version.py`.
 
+## 0.8.4 — 2026-11-06 (OCR Vision sur couche texte inexploitable, tableaux reconstruits)
+
+Retour terrain : l'OCR de secours ne se déclenchait pas, parce que la NCM
+scannée a une couche texte (produite par le scanner), inexploitable mais
+présente ; et les tableaux n'étaient pas reconstruits.
+
+- Chaîne de lecture d'une NCM PDF avec l'OCR de secours : quadrillage →
+  lecture ligne par ligne → si rien n'est retenu, **toutes les pages sont
+  relues par le modèle Vision** et les tableaux reconstruits depuis sa
+  sortie. Même chaîne pour la spécification (aucune exigence dans la couche
+  texte → OCR de toutes les pages). Le diagnostic dit quelle étape a servi.
+- Mode « forcer » (`--ocr-forcer`, case « forcer sur toutes les pages ») :
+  OCR de toutes les pages d'emblée, couche texte ignorée.
+- Consigne d'OCR propre à SILLAGE : chaque tableau rendu en lignes à barres
+  verticales, une ligne par rangée, cellules multi-lignes recopiées sur une
+  seule ligne, identifiants et statuts recopiés tels quels. Appels page par
+  page (`pdf_page_to_image` + `ocr_image_with_llm` du moteur, retries de
+  RIVAGE), trois pages en parallèle, cache local `ocr_cache.sqlite` dans le
+  dossier de données (clé : fichier, taille, date, page, version de la
+  consigne) en plus du mémo de session.
+- Tableaux OCR sans barres : repli sur les colonnes séparées par trois
+  espaces ou plus.
+- Sans OCR demandé, une NCM PDF dont la couche texte ne donne rien le dit
+  dans le diagnostic et invite à activer l'OCR de secours.
+- Commande `inspecter <pdf> [--spec …] [--sortie rapport.txt]` : ce que
+  SILLAGE voit page par page (couche texte, tableaux par quadrillage et
+  cellules effondrées, lecture ligne par ligne, identifiants, OCR
+  disponible), rapport à envoyer quand une lecture échoue.
+
 ## 0.8.3 — 2026-11-06 (PDF scannés puis OCRisés : quadrillage inexploitable)
 
 Retour terrain, NCM PDF signée : « Tableaux lus : 2, retenus : 0 ». Le

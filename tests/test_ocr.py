@@ -118,3 +118,56 @@ def test_lire_tableaux_pdf_mixte(tmp_path, faux_ocr):
     tableaux = lire_tableaux(tmp_path / "ncm_mixte.pdf", ocr=True)
     assert faux_ocr == [[2]]
     assert [t.ocr for t in tableaux] == [False, True]
+
+
+SPEC_MAUVAISE = ["Appendix B2-3", "5.1.2 Provide thrust", "[REQ_B2-3_15]", "The engine control system must maintain normal engine operation."]
+NCM_MAUVAISE = ["RR ID DA ID DGT Compliance Comments", "135 [REQ_B2-3_34] Last data set Compliant Should be", "151 [REQ_B2-3_16] In case Partially compliant Recovery"]
+
+
+def _pdf_texte_degrade(chemin, lignes):
+    """Couche texte inexploitable (OCR du scanner) : mots tronqués sans aucun identifiant reconnaissable."""
+    doc = fitz.open()
+    page = doc.new_page()
+    y = 50
+    for l in lignes:
+        page.insert_text((40, y), l.replace("REQ_B2-3", "R£Q 82 3").replace("[", "{"), fontsize=9)
+        y += 14
+    doc.save(str(chemin))
+    doc.close()
+    return chemin
+
+
+def test_ocr_force_sur_toutes_les_pages(tmp_path, faux_ocr):
+    """« forcer » : la couche texte est ignorée, toutes les pages partent en OCR."""
+    doc = fitz.open()
+    page = doc.new_page()
+    page.insert_text((40, 50), "[REQ_B2-3_99] texte de la couche", fontsize=9)
+    doc.new_page()
+    doc.save(str(tmp_path / "spec_force.pdf"))
+    doc.close()
+    ref = lire_referentiel(tmp_path / "spec_force.pdf", ocr="forcer")
+    assert faux_ocr == [[1, 2]]
+    assert ref.ids == ["REQ_B2-3_15", "REQ_B2-3_16", "REQ_B2-3_18"]      # le texte du faux OCR, pas la couche
+
+
+def test_couche_texte_inexploitable_relue_par_ocr(tmp_path, faux_ocr):
+    """OCR de secours (vrai) sur un PDF dont la couche texte existe mais ne
+    donne rien : relu par le modèle Vision, tableaux reconstruits."""
+    spec = _pdf_texte_degrade(tmp_path / "spec.pdf", SPEC_MAUVAISE)
+    ref = lire_referentiel(spec, ocr=True)
+    assert ref.ids == ["REQ_B2-3_15", "REQ_B2-3_16"]          # une seule page : le faux OCR de la page 1
+    assert faux_ocr[-1] == [1]
+    ncm_p = _pdf_texte_degrade(tmp_path / "ncm.pdf", NCM_MAUVAISE)
+    sans = lire_ncm(ncm_p, ref.motif, DictionnaireStatuts())
+    assert not sans.ids and any("activer l'OCR" in a for a in sans.diagnostic.avertissements)
+    ncm = lire_ncm(ncm_p, ref.motif, DictionnaireStatuts(), ocr=True)
+    assert ncm.ids == ["REQ_B2-3_16", "REQ_B2-3_18"]
+    assert ncm.par_id()["REQ_B2-3_16"][0].statut is Statut.PARTIEL
+    assert ncm.diagnostic.tableaux_ocr == 1
+    assert any("relues par l'OCR" in a for a in ncm.diagnostic.avertissements)
+
+
+def test_tableau_ocr_sans_barres():
+    texte = "RR ID   DA ID            Compliance           Comments\n135     [REQ_B2-3_34]    Compliant            Should be transferred.\n151     [REQ_B2-3_16]    Partially compliant   To be agreed.\n"
+    t = ocr.tableaux_depuis_texte(texte, "f.pdf", 1)
+    assert len(t) == 1 and t[0].lignes[2] == ["151", "[REQ_B2-3_16]", "Partially compliant", "To be agreed."]

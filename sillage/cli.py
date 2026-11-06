@@ -27,7 +27,14 @@ from .modele import Statut
 from .version import VERSION_LABEL
 
 
-def _motif_et_ref(spec: Optional[str], ocr: bool = False):
+def _ocr(a):
+    """Régime d'OCR demandé : False, True (secours) ou « forcer » (toutes les pages)."""
+    if getattr(a, "ocr_forcer", False):
+        return "forcer"
+    return bool(getattr(a, "ocr", False))
+
+
+def _motif_et_ref(spec: Optional[str], ocr=False):
     from .referentiel import lire_referentiel
     if not spec:
         return None, None
@@ -36,7 +43,7 @@ def _motif_et_ref(spec: Optional[str], ocr: bool = False):
 
 
 def _lire(chemin: str, spec: Optional[str], fournisseur: str, revision: str, sans_profil: bool = False,
-          ocr: bool = False):
+          ocr=False):
     from .lecture_ncm import lire_ncm
     from .profils import Profil
     from .statuts import DictionnaireStatuts
@@ -48,8 +55,80 @@ def _lire(chemin: str, spec: Optional[str], fournisseur: str, revision: str, san
     return ncm, ref
 
 
+def cmd_inspecter(a) -> int:
+    """Ce que SILLAGE voit dans un document : couche texte, tableaux par
+    quadrillage, lecture ligne par ligne, identifiants, OCR disponible.
+    Rapport à envoyer quand une lecture échoue."""
+    from .identifiants import MotifIdentifiant
+    from .tableaux import lire_tableaux, tableau_par_alignements
+    from . import ocr as ocr_mod
+    p = Path(a.fichier)
+    lignes: list = []
+    out = lignes.append
+    out(f"{VERSION_LABEL} — inspection de {p.name} ({p.stat().st_size // 1024} Ko)")
+    motif = MotifIdentifiant()
+    if a.spec:
+        from .referentiel import lire_referentiel
+        ref = lire_referentiel(a.spec, ocr=_ocr(a))
+        motif = ref.motif
+        out(f"Référentiel : {len(ref)} exigences, préfixes {sorted(motif.prefixes)}")
+    if p.suffix.lower() != ".pdf":
+        for t in lire_tableaux(p):
+            ids = sum(1 for l in t.lignes for c in l if len(c) <= 80 and motif.trouver(c))
+            out(f"{t.emplacement} : {len(t.lignes)} ligne(s) × {t.nb_colonnes} colonne(s), {ids} cellule(s) avec identifiant")
+            for l in t.lignes[:3]:
+                out("    " + " | ".join(c[:25].replace("\n", "⏎") for c in l))
+    else:
+        import pdfplumber
+        with pdfplumber.open(str(p)) as pdf:
+            out(f"Pages : {len(pdf.pages)}")
+            for n, page in enumerate(pdf.pages, start=1):
+                texte = page.extract_text() or ""
+                ids = motif.extraire(texte, deplier_plages=False)
+                etat = " — SANS COUCHE TEXTE (scan)" if not texte.strip() else ""
+                out(f"--- page {n} : {len(texte)} caractères, {len(texte.split())} mots, {len(ids)} identifiant(s) dans le texte{etat}")
+                try:
+                    tables = page.extract_tables() or []
+                except Exception as exc:  # pragma: no cover
+                    tables = []
+                    out(f"    quadrillage : erreur {exc}")
+                out(f"    tableaux par quadrillage : {len(tables)}")
+                for k, t in enumerate(tables, start=1):
+                    nb_col = max(len(r) for r in t)
+                    plus_longue = max(len(str(c or "")) for r in t for c in r)
+                    effondre = " — EFFONDRÉ (rangées fusionnées dans une cellule)" if plus_longue > 120 else ""
+                    out(f"      tableau {k} : {len(t)} rangée(s) × {nb_col} colonne(s), cellule la plus longue : {plus_longue} caractères{effondre}")
+                    if n <= a.pages:
+                        for r in t[:3]:
+                            out("        " + " | ".join(str(c or "")[:25].replace("\n", "⏎") for c in r))
+                if texte.strip():
+                    al = tableau_par_alignements(page, str(p), n)
+                    if al:
+                        t = al[0]
+                        ids_al = sum(1 for l in t.lignes for c in l if len(c) <= 80 and motif.trouver(c))
+                        out(f"    lecture ligne par ligne : {len(t.lignes)} ligne(s) × {t.nb_colonnes} colonne(s), "
+                            f"{ids_al} cellule(s) avec identifiant")
+                        if n <= a.pages:
+                            for l in t.lignes[:6]:
+                                out("        " + " | ".join(c[:25] for c in l))
+                    else:
+                        out("    lecture ligne par ligne : aucune colonne déduite")
+                    if n <= a.pages:
+                        out("    premières lignes du texte :")
+                        for l in texte.splitlines()[:8]:
+                            out("      " + l[:110])
+    ok, raison = ocr_mod.disponible()
+    out("OCR de secours : " + ("disponible" if ok else f"indisponible — {raison}"))
+    rapport = "\n".join(lignes)
+    print(rapport)
+    if a.sortie:
+        Path(a.sortie).write_text(rapport + "\n", encoding="utf-8")
+        print(f"Rapport écrit : {a.sortie}")
+    return 0
+
+
 def cmd_lire(a) -> int:
-    ncm, _ = _lire(a.ncm, a.spec, a.fournisseur, a.revision, a.sans_profil, a.ocr)
+    ncm, _ = _lire(a.ncm, a.spec, a.fournisseur, a.revision, a.sans_profil, _ocr(a))
     print(f"{VERSION_LABEL} — lecture de {Path(a.ncm).name}" + (f" (révision {ncm.revision})" if ncm.revision else ""))
     print(ncm.diagnostic.texte())
     if a.json:
@@ -110,7 +189,7 @@ def _couverture(a, ref):
 def cmd_grille(a) -> int:
     from .controles import controler
     from .grille import exporter_grille
-    ncm, ref = _lire(a.ncm, a.spec, a.fournisseur, a.revision, a.sans_profil, a.ocr)
+    ncm, ref = _lire(a.ncm, a.spec, a.fournisseur, a.revision, a.sans_profil, _ocr(a))
     if a.prefiltree:
         ncm.prefiltree = True
     elif a.non_prefiltree:
@@ -262,7 +341,7 @@ def cmd_tracer(a) -> int:
     if not disponible():
         print(message_absent(), file=sys.stderr)
         return 1
-    ref = lire_referentiel(a.spec, ocr=getattr(a, "ocr", False))
+    ref = lire_referentiel(a.spec, ocr=_ocr(a))
     index_dir = a.index
     print(f"{VERSION_LABEL} — traçabilité de {len(ref)} exigences ({Path(a.spec).name}) vers la norme indexée dans {index_dir}")
     def progression(k, n, ident):
@@ -288,7 +367,7 @@ def cmd_tracer(a) -> int:
 def cmd_couverture(a) -> int:
     from .norme import couverture, paragraphes_cites
     from .referentiel import lire_referentiel
-    ref = lire_referentiel(a.spec, ocr=getattr(a, "ocr", False))
+    ref = lire_referentiel(a.spec, ocr=_ocr(a))
     trac = _tracabilite(a)
     if trac is not None:
         from .norme import appliquer
@@ -345,7 +424,7 @@ def cmd_appui(a) -> int:
 
 def cmd_affaiblissements(a) -> int:
     from .affaiblissements import relever
-    motif, ref = _motif_et_ref(a.spec, getattr(a, "ocr", False))
+    motif, ref = _motif_et_ref(a.spec, _ocr(a))
     r = relever(a.fichiers, motif=motif, ids_connus=ref.ids if ref else None)
     print(f"{VERSION_LABEL} — {r.texte_resume()}")
     for o in r.occurrences[: a.limite]:
@@ -359,8 +438,8 @@ def cmd_affaiblissements(a) -> int:
 def cmd_diff(a) -> int:
     from .controles import comparer
     from .grille import exporter_diff
-    avant, _ = _lire(a.avant, a.spec, a.fournisseur, a.revision_avant, a.sans_profil, a.ocr)
-    apres, _ = _lire(a.apres, a.spec, a.fournisseur, a.revision_apres, a.sans_profil, a.ocr)
+    avant, _ = _lire(a.avant, a.spec, a.fournisseur, a.revision_avant, a.sans_profil, _ocr(a))
+    apres, _ = _lire(a.apres, a.spec, a.fournisseur, a.revision_apres, a.sans_profil, _ocr(a))
     d = comparer(avant, apres)
     print(f"{VERSION_LABEL} — diff {d.avant} → {d.apres}")
     print(d.texte_resume())
@@ -411,7 +490,7 @@ def cmd_profils(a) -> int:
         from .lecture_ncm import profil_depuis_colonnes, reconnaitre_colonnes
         from .statuts import DictionnaireStatuts
         from .tableaux import lire_tableaux
-        motif, _ = _motif_et_ref(a.spec, getattr(a, "ocr", False))
+        motif, _ = _motif_et_ref(a.spec, _ocr(a))
         from .identifiants import MotifIdentifiant
         motif = motif or MotifIdentifiant()
         dico = DictionnaireStatuts.charger()
@@ -452,7 +531,9 @@ def construire_parseur() -> argparse.ArgumentParser:
         q.add_argument("--fournisseur", default="", help="nom du fournisseur (profil et sortie)")
         q.add_argument("--sans-profil", action="store_true", help="ignorer le profil fournisseur enregistré")
         q.add_argument("--ocr", action="store_true",
-                       help="OCR de secours des pages scannées (spécification et NCM PDF ; appels payants au modèle Vision)")
+                       help="OCR de secours (spécification et NCM PDF ; appels payants au modèle Vision) : pages sans "
+                            "couche texte, puis toutes les pages si la couche texte ne donne rien")
+        q.add_argument("--ocr-forcer", action="store_true", help="OCR de toutes les pages d'emblée, couche texte ignorée")
 
     q = sp.add_parser("lire", help="lire une NCM et afficher son diagnostic")
     q.add_argument("ncm")
@@ -461,6 +542,13 @@ def construire_parseur() -> argparse.ArgumentParser:
     q.add_argument("--json", help="écrire la NCM normalisée (JSON)")
     q.add_argument("--aperçu", "--apercu", dest="aperçu", type=int, default=0, metavar="N", help="afficher les N premières lignes")
     q.set_defaults(fonction=cmd_lire)
+
+    q = sp.add_parser("inspecter", help="montrer ce que SILLAGE voit dans un PDF (couche texte, tableaux, colonnes, identifiants)")
+    q.add_argument("fichier")
+    q.add_argument("--spec", help="spécification : son motif d'identifiants sert à compter les identifiants")
+    q.add_argument("--pages", type=int, default=3, help="nombre de pages détaillées (défaut 3)")
+    q.add_argument("--sortie", help="écrire le rapport dans ce fichier texte (à envoyer pour analyse)")
+    q.set_defaults(fonction=cmd_inspecter)
 
     def options_rivage(q):
         q.add_argument("--index", help="index (moteur embarqué) des documents du fournisseur (défaut : dossier de données SILLAGE, par fournisseur)")

@@ -67,19 +67,23 @@ def paragraphes_texte(p: Path) -> List[Para]:
     return out
 
 
-def paragraphes_pdf(p: Path, ocr: bool = False) -> List[Para]:
+def paragraphes_pdf(p: Path, ocr=False) -> List[Para]:
     """Une `Para` par ligne de texte (fragment), les titres de section repérés
     par leur numérotation. Les lignes répétées sur au moins trois pages
     (en-tête et pied courants) et le bruit de mise en page (« ** », numéros
     de page) sont ignorés. Un PDF sans couche texte ne donne rien : c'est un
-    scan ; avec `ocr`, ses pages passent par l'OCR de secours (appels payants)."""
+    scan ; avec `ocr` vrai, ses pages sans texte passent par l'OCR de secours
+    (appels payants) ; avec `ocr == "forcer"`, toutes les pages."""
     import pdfplumber
     from collections import Counter
     out = []
     with pdfplumber.open(str(p)) as pdf:
         pages = [(page.extract_text() or "") for page in pdf.pages]
     if ocr:
-        scannees = [n for n, texte in enumerate(pages, start=1) if not texte.strip()]
+        if ocr == "forcer":
+            scannees = list(range(1, len(pages) + 1))
+        else:
+            scannees = [n for n, texte in enumerate(pages, start=1) if not texte.strip()]
         if scannees:
             from .ocr import pages_ocr
             for n, texte in pages_ocr(p, scannees).items():
@@ -123,8 +127,8 @@ LECTEURS = {
 }
 
 
-def paragraphes(chemin, ocr: bool = False) -> List[Para]:
-    """`ocr` : OCR de secours des pages scannées (PDF seulement)."""
+def paragraphes(chemin, ocr=False) -> List[Para]:
+    """`ocr` : OCR de secours des pages scannées, ou « forcer » (PDF seulement)."""
     p = Path(chemin)
     lecteur = LECTEURS.get(p.suffix.lower())
     if lecteur is None:

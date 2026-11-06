@@ -122,7 +122,7 @@ class Application(tk.Tk):
         d = {"spec": self.v_spec.get(), "projet": self.v_projet.get(), "fournisseur": self.v_fournisseur.get(), "ncm": self.v_ncm.get(),
              "documents": self.v_documents.get(), "index": self.v_index.get(),
              "seuil_etaye": self.v_seuil_etaye.get(), "seuil_faible": self.v_seuil_faible.get(),
-             "statuts": self.v_statuts.get(), "ocr": self.v_ocr.get()}
+             "statuts": self.v_statuts.get(), "ocr": self.v_ocr.get(), "ocr_forcer": self.v_ocr_forcer.get()}
         try:
             p = self._fichier_reglages()
             p.parent.mkdir(parents=True, exist_ok=True)
@@ -156,6 +156,7 @@ class Application(tk.Tk):
         self.v_signee = tk.BooleanVar(value=False)
         self.v_prefiltree = tk.BooleanVar(value=False)
         self.v_ocr = tk.BooleanVar(value=bool(r.get("ocr", False)))
+        self.v_ocr_forcer = tk.BooleanVar(value=bool(r.get("ocr_forcer", False)))
         self.v_fournisseur = tk.StringVar(value=r.get("fournisseur", ""))
         self.v_ncm = tk.StringVar(value=r.get("ncm", ""))
         self.v_revision = tk.StringVar(value="")
@@ -196,6 +197,7 @@ class Application(tk.Tk):
         ttk.Checkbutton(cases, text="NCM pré-filtrée (absentes réputées conformes)", variable=self.v_prefiltree,
                         command=lambda: self.calculer_grille() if self.ncm is not None else None).pack(side="left", padx=(12, 0))
         ttk.Checkbutton(cases, text="OCR de secours (PDF scannés, appels payants)", variable=self.v_ocr).pack(side="left", padx=(12, 0))
+        ttk.Checkbutton(cases, text="forcer sur toutes les pages", variable=self.v_ocr_forcer).pack(side="left", padx=(6, 0))
 
         # actions : les étapes sur une rangée, les outils et réglages sur la suivante
         actions = ttk.Frame(self)
@@ -442,7 +444,13 @@ class Application(tk.Tk):
         widget.configure(state="disabled")
 
     # --- actions ---------------------------------------------------------------------------
-    def _charger_ref(self, spec: Optional[str] = None, ocr: Optional[bool] = None):
+    def _regime_ocr(self):
+        """False, True (secours) ou « forcer » — à lire dans le fil principal."""
+        if self.v_ocr_forcer.get():
+            return "forcer"
+        return self.v_ocr.get()
+
+    def _charger_ref(self, spec: Optional[str] = None, ocr=None):
         """Le référentiel (relu si la spécification a changé). Hors du fil
         principal, `spec` et `ocr` doivent être donnés : les variables Tk n'y
         sont pas lisibles."""
@@ -450,14 +458,14 @@ class Application(tk.Tk):
         if spec is None:
             spec = self.v_spec.get().strip()
         if ocr is None:
-            ocr = self.v_ocr.get()
+            ocr = self._regime_ocr()
         if not spec:
             raise ValueError("choisissez d'abord la spécification (référentiel)")
         if self.ref is None or self.ref.source != spec:
             self.ref = lire_referentiel(spec, ocr=ocr)
         return self.ref
 
-    def _lire_ncm_travail(self, spec: str, ncm_f: str, fournisseur: str, revision: str, ocr: bool = False):
+    def _lire_ncm_travail(self, spec: str, ncm_f: str, fournisseur: str, revision: str, ocr=False):
         from .lecture_ncm import lire_ncm
         from .profils import Profil
         from .statuts import DictionnaireStatuts
@@ -474,7 +482,7 @@ class Application(tk.Tk):
         # valeurs lues ICI, dans le fil principal : le fil de travail ne touche pas aux variables Tk
         spec, ncm_f = self.v_spec.get().strip(), self.v_ncm.get().strip()
         fournisseur, revision = self.v_fournisseur.get().strip(), self.v_revision.get().strip()
-        ocr = self.v_ocr.get()
+        ocr = self._regime_ocr()
 
         def fin(ncm):
             self.ncm = ncm
@@ -612,7 +620,7 @@ class Application(tk.Tk):
             return
         ref, apres = self.ref, self.ncm
         fournisseur = self.v_fournisseur.get().strip()
-        ocr = self.v_ocr.get()
+        ocr = self._regime_ocr()
 
         def travail():
             from .controles import comparer

@@ -144,10 +144,15 @@ spécification. Un PDF sans couche texte (scan) est signalé comme tel ; avec
 l'**OCR de secours** (`--ocr`, case « OCR de secours » dans l'interface), ses
 pages sont lues par le modèle Vision de la passerelle, comme dans
 l'indexeur de RIVAGE (même clé `RIVAGE_SYNTH_KEY`, même cache de pages ;
-chaque page est un appel payant, seules les pages sans texte partent en
-OCR). Pour une NCM scannée, les tableaux sont reconstruits depuis les
-lignes à barres verticales du texte rendu, et le diagnostic indique
-combien de tableaux viennent de l'OCR, à relire.
+chaque page est un appel payant). Avec l'OCR de secours, les pages sans
+texte partent en OCR ; et si la couche texte existe mais ne donne rien
+(scan OCRisé par le scanner : « Tableaux lus : 2, retenus : 0 »), toutes
+les pages sont relues par le modèle Vision. « Forcer sur toutes les pages »
+(`--ocr-forcer`) saute la couche texte d'emblée. La consigne demande au
+modèle des tableaux en lignes à barres verticales, une ligne par rangée :
+SILLAGE les reconstruit, et le diagnostic indique combien de tableaux
+viennent de l'OCR, à relire. La commande `inspecter fichier.pdf --spec
+spec.pdf --sortie rapport.txt` montre ce que SILLAGE voit page par page.
 
 Les tableaux sont lus **ligne par ligne** : dans un PDF sans quadrillage,
 les colonnes sont déduites des alignements du texte et chaque ligne de texte

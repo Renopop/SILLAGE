@@ -209,7 +209,7 @@ def revision_depuis_nom(nom: str) -> str:
 def lire_ncm(chemin, motif: Optional[MotifIdentifiant] = None, dico: Optional[DictionnaireStatuts] = None,
              profil: Optional[Profil] = None, fournisseur: str = "", revision: str = "",
              ids_referentiel: Optional[Sequence[str]] = None,
-             textes_referentiel: Optional[Dict[str, str]] = None, ocr: bool = False) -> NCM:
+             textes_referentiel: Optional[Dict[str, str]] = None, ocr=False) -> NCM:
     """Lit un fichier de NCM et renvoie ses lignes pivot avec leur diagnostic.
 
     `textes_referentiel` (identifiant → texte) sert à reconnaître la colonne
@@ -217,8 +217,10 @@ def lire_ncm(chemin, motif: Optional[MotifIdentifiant] = None, dico: Optional[Di
     listed below, all other items can be assumed compliant »), le diagnostic
     le note et `ncm.prefiltree` est posé : les contrôles traitent alors les
     exigences absentes comme conformes implicites. `ocr` : OCR de secours
-    des pages scannées d'une NCM PDF (appels payants) ; un OCR indisponible
-    ou incomplet est signalé dans le diagnostic, pas levé."""
+    (vrai : pages sans couche texte, puis toutes les pages si la couche texte
+    ne donne aucun tableau exploitable ; « forcer » : toutes les pages
+    d'emblée) ; un OCR indisponible ou incomplet est signalé dans le
+    diagnostic, pas levé."""
     motif = motif or MotifIdentifiant()
     dico = dico or DictionnaireStatuts.charger()
     chemin = Path(chemin)
@@ -247,22 +249,40 @@ def lire_ncm(chemin, motif: Optional[MotifIdentifiant] = None, dico: Optional[Di
             _lire_lignes(t, cols, motif, dico, ncm, diag)
         return retenues
 
+    def relire(nouveaux, message):
+        """Deuxième chance : si ces tableaux donnent des colonnes, ils remplacent les premiers."""
+        nonlocal tableaux, colonnes_retenues
+        if not nouveaux:
+            return
+        avant = len(ncm.lignes)
+        diag.tableaux_lus = len(nouveaux)
+        diag.tableaux_ocr = sum(1 for t in nouveaux if t.ocr)
+        colonnes_retenues = lire(nouveaux)
+        if colonnes_retenues is not None:
+            tableaux = nouveaux
+            diag.avertissements.append(message)
+        else:
+            del ncm.lignes[avant:]
+
+    est_pdf = chemin.suffix.lower() == ".pdf"
     diag.tableaux_lus = len(tableaux)
     diag.tableaux_ocr = sum(1 for t in tableaux if t.ocr)
-    effondres = [t for t in tableaux if chemin.suffix.lower() == ".pdf" and not t.ocr and _effondre(t, motif)]
+    effondres = [t for t in tableaux if est_pdf and not t.ocr and _effondre(t, motif)]
     colonnes_retenues: Optional[Colonnes] = lire([t for t in tableaux if t not in effondres])
-    if colonnes_retenues is None and chemin.suffix.lower() == ".pdf" and any(not t.ocr for t in tableaux):
+    if colonnes_retenues is None and est_pdf and ocr != "forcer" and any(not t.ocr for t in tableaux):
         # le quadrillage détecté (PDF scanné puis OCRisé : traits partiels, cellules géantes)
         # ne donne rien : relecture ligne par ligne, colonnes déduites des alignements
-        par_alignements = lire_tableaux(chemin, ocr=ocr, alignements=True)
-        if par_alignements:
-            diag.tableaux_lus = len(par_alignements)
-            diag.tableaux_ocr = sum(1 for t in par_alignements if t.ocr)
-            colonnes_retenues = lire(par_alignements)
+        relire(lire_tableaux(chemin, ocr=ocr, alignements=True),
+               "quadrillage du PDF inexploitable : pages lues ligne par ligne, colonnes déduites des alignements du texte (à relire)")
+    if colonnes_retenues is None and est_pdf and ocr and ocr != "forcer":
+        # la couche texte elle-même est inexploitable (OCR du scanner) : toutes les pages relues par le modèle Vision
+        try:
+            relire(lire_tableaux(chemin, ocr="forcer"),
+                   "couche texte du PDF inexploitable : toutes les pages relues par l'OCR de secours, tableaux reconstruits (à relire)")
             if colonnes_retenues is not None:
-                tableaux = par_alignements
-                diag.avertissements.append("quadrillage du PDF inexploitable : pages lues ligne par ligne, "
-                                           "colonnes déduites des alignements du texte (à relire)")
+                ocr = "forcer"
+        except RuntimeError as exc:
+            diag.avertissements.append(str(exc))
 
     diag.prefiltree = ncm.prefiltree = _declaree_prefiltree(chemin, tableaux, ocr)
     if diag.tableaux_retenus == 0:
@@ -274,6 +294,10 @@ def lire_ncm(chemin, motif: Optional[MotifIdentifiant] = None, dico: Optional[Di
                     ("l'OCR de secours n'y a reconstruit aucun tableau exploitable" if ocr else
                      "rien n'est lisible sans OCR — activer l'OCR de secours (--ocr, case « OCR de secours ») "
                      "ou demander la NCM sous forme de tableur ou de PDF texte"))
+            elif not ocr:
+                diag.avertissements.append("la couche texte du PDF ne donne aucun tableau exploitable (scan OCRisé par le "
+                                           "scanner ?) : activer l'OCR de secours (--ocr, case « OCR de secours ») pour "
+                                           "relire les pages avec le modèle Vision")
         diag.avertissements.append("aucun tableau ne contient une colonne d'identifiants d'exigences")
     if colonnes_retenues is not None and colonnes_retenues.statut is None:
         diag.avertissements.append("aucune colonne de statuts reconnue : toutes les lignes sont « ? » "

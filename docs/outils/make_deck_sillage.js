@@ -209,7 +209,7 @@ s.addText("Du tableau du fournisseur, quel qu'il soit, aux lignes pivot — sans
 // Identifiants
 s = slide("Identifiants : reconnaître, normaliser, déplier", "Lire une NCM");
 para(s, "L'identifiant est écrit de mille façons ([REQ_B2-3_15], REQ-001, req_0042, REQ 7, REQ-100a, « REQ-100 à REQ-120 »). SILLAGE le reconnaît par un motif, le ramène à l'écriture de la spécification, et déplie les plages en autant de lignes.", 0.6, 1.4, 7.4, 1.2, 15);
-formule(s, "PRÉFIXE sép NUMÉRO[suffixe]       [REQ_B2-3_15] → REQ_B2-3_15     REQ-B2-3-015 → REQ_B2-3_15", 0.6, 2.7, 7.4, 0.8, 15);
+formule(s, "PRÉFIXE sép NUMÉRO[suffixe]        [REQ_B2-3_15], REQ-B2-3-015 → REQ_B2-3_15", 0.6, 2.7, 7.4, 0.8, 15);
 bullets(s, [
   "Préfixe composé possible (le code de l'annexe en fait partie) : le numéro est le dernier groupe de chiffres ; crochets, casse, séparateurs et zéros de tête sont tolérés.",
   "Motif restreint aux préfixes du référentiel (déduits de la spécification) : « CS 25.1309 », « DO-178C » ou « B2-1 » ne sont jamais pris pour des exigences.",

@@ -241,7 +241,7 @@ const fmts = [["Classeur Excel (xlsx, xlsm)", "une feuille = un tableau ; cellul
   ["CSV", "délimiteur détecté (; , tabulation |)"]];
 fmts.forEach((f, i) => card(s, 0.6, 1.4 + i * 1.3, 7.4, 1.2, f[0], f[1], C.background2, C.text2, 12));
 card(s, 8.4, 1.4, 4.3, 2.4, "Chaque ligne garde son origine", "Fichier, feuille (ou page et tableau), numéro de ligne : la grille et le détail de l'interface renvoient à la cellule d'origine. Un contrôle contesté se vérifie en dix secondes.", C.background2, C.text2, 12);
-card(s, 8.4, 4.0, 4.3, 2.6, "La limite connue", "Un tableau PDF sans traits, ou avec cellules fusionnées verticalement, est mal détecté. Première règle terrain : demander l'Excel en plus du PDF signé. Repli texte prévu (audit, M-1).", "FFF4E3", C.accent3, 12);
+card(s, 8.4, 4.0, 4.3, 2.6, "Lecture ligne par ligne", "Sans quadrillage, les colonnes sont déduites des alignements du texte et chaque ligne de texte devient une ligne ; les cellules hautes (« Partially » / « compliant ») ressortent en lignes de suite, recollées à la ligne de l'identifiant. Un PDF scanné passe par l'OCR de secours.", "FFF4E3", C.accent3, 12);
 
 // Colonnes
 s = slide("Reconnaître les colonnes par leur contenu, pas par leur nom", "Lire une NCM");

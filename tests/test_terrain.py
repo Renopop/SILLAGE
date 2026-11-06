@@ -176,3 +176,68 @@ def test_pdf_scanne_signale(tmp_path):
         lire_referentiel(tmp_path / "scan.pdf")
     ncm = lire_ncm(tmp_path / "scan.pdf", MotifIdentifiant({"REQ"}), DictionnaireStatuts())
     assert any("scanné" in a for a in ncm.diagnostic.avertissements)
+
+
+def _pdf_sans_traits(chemin, lignes, hauteur_ligne=11):
+    """Tableau sans quadrillage : du texte aligné en colonnes, les cellules
+    hautes écrites sur plusieurs lignes (le statut centré verticalement)."""
+    doc = fitz.open()
+    page = doc.new_page(width=842, height=595)
+    xs = [30, 70, 170, 520, 640]
+    y = 40
+    for row in lignes:
+        cellules = [str(c).split("\n") for c in row]
+        h = max(len(c) for c in cellules)
+        for col, (x, lignes_cell) in enumerate(zip(xs, cellules)):
+            decal = (h - len(lignes_cell)) // 2 if col == 3 else 0     # statut centré dans la hauteur
+            for i, l in enumerate(lignes_cell):
+                if l:
+                    page.insert_text((x, y + (decal + i) * hauteur_ligne), l, fontsize=7)
+        y += (h + 1) * hauteur_ligne
+    doc.save(str(chemin))
+    doc.close()
+    return chemin
+
+
+NCM_SANS_TRAITS = [
+    ["RR ID", "DA ID", "DGT 165737 A", "Compliance", "Comments"],
+    ["135", "[REQ_B2-3_34]", "Last data set shall be delivered\nno later than 6 months before\nfirst flight.", "Compliant", "Should be transferred\nto SOW."],
+    ["150", "", "5.1.2.2.1 Inadvertent Shut Down", "", ""],
+    ["196", "[REQ_B2-3_16]", "In case of abnormal condition\nleading to engine surge, the\nsystem shall provide automatic\nrecovery without pilot action.", "Partially\ncompliant", "Based on discussions 22nd June\nRolls-Royce will study solutions\nwith DA for bleed temperature\nmeasurement."],
+    ["237", "[REQ_B2-3_128]", "Control system accuracy shall\nbe taken into account.", "N/A", "Requirement not applicable\nto RR."],
+]
+
+
+def test_ncm_pdf_sans_traits_lignes_recollees(tmp_path):
+    """Sans quadrillage, pdfplumber découpe chaque ligne de texte : le statut
+    « Partially compliant », centré dans une ligne haute, n'est pas sur la
+    ligne de l'identifiant. Les lignes de suite sont recollées."""
+    ref = lire_referentiel(_pdf_texte(tmp_path / "spec.pdf", PAGES))
+    ncm = lire_ncm(_pdf_sans_traits(tmp_path / "ncm_sans_traits.pdf", NCM_SANS_TRAITS), ref.motif, DictionnaireStatuts(),
+                   ids_referentiel=ref.ids, textes_referentiel={e.id: e.texte for e in ref.exigences})
+    assert ncm.ids == ["REQ_B2-3_34", "REQ_B2-3_16", "REQ_B2-3_128"]
+    par = ncm.par_id()
+    assert par["REQ_B2-3_16"][0].statut is Statut.PARTIEL
+    assert par["REQ_B2-3_16"][0].statut_brut == "Partially compliant"
+    assert par["REQ_B2-3_16"][0].justification.startswith("Based on discussions 22nd June")
+    assert par["REQ_B2-3_16"][0].justification.endswith("measurement.")
+    assert par["REQ_B2-3_34"][0].statut is Statut.CONFORME
+    assert par["REQ_B2-3_128"][0].statut is Statut.NON_APPLICABLE
+    assert ncm.diagnostic.lignes_total == 4           # trois exigences et la ligne de titre, pas les lignes de suite
+    assert not ncm.diagnostic.statuts_inconnus
+
+
+def test_lignes_de_suite_dans_un_tableur(tmp_path):
+    """Même recollage pour un tableur où une réponse s'étale sur plusieurs lignes."""
+    from conftest import ecrire_xlsx
+    ncm = lire_ncm(ecrire_xlsx(tmp_path / "ncm.xlsx", [
+        ["N°", "Req ID", "Compliance", "Justification"],
+        ["1", "REQ-1", "Partially", "Qualified to +55 °C"],
+        ["", "", "compliant", "only ; test at +70 °C planned."],
+        ["2", "", "5.2 Environment", ""],
+        ["3", "REQ-2", "C", "OK"],
+    ]), MotifIdentifiant({"REQ"}), DictionnaireStatuts())
+    par = ncm.par_id()
+    assert par["REQ-1"][0].statut is Statut.PARTIEL
+    assert par["REQ-1"][0].justification == "Qualified to +55 °C only ; test at +70 °C planned."
+    assert par["REQ-2"][0].statut is Statut.CONFORME

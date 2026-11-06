@@ -8,9 +8,13 @@ pour que chaque ligne pivot puisse être retrouvée.
   (valeur recopiée dans toute la zone) ; les lignes entièrement vides sont
   ignorées mais la numérotation d'origine est conservée ;
 - Word : chaque table du document ;
-- PDF : chaque tableau détecté par pdfplumber sur chaque page ; les tableaux
+- PDF : chaque tableau détecté par pdfplumber sur chaque page ; sans
+  quadrillage, la page est lue ligne par ligne et les colonnes sont déduites
+  des alignements du texte (`tableau_par_alignements`), les cellules hautes
+  ressortant en lignes de suite que `lecture_ncm` recolle ; les tableaux
   coupés sur plusieurs pages sont recollés quand le nombre de colonnes est le
-  même (l'en-tête répété est retiré) ;
+  même (l'en-tête répété est retiré) ; les pages scannées passent par l'OCR
+  de secours si demandé ;
 - csv : délimiteur détecté.
 """
 
@@ -96,6 +100,53 @@ def lire_docx(chemin: Path) -> List[Tableau]:
 
 
 # --- pdf ----------------------------------------------------------------------
+def tableau_par_alignements(page, fichier: str, numero_page: int) -> List[Tableau]:
+    """Tableau d'une page PDF sans quadrillage, lu **ligne par ligne** : les
+    mots sont regroupés en lignes de texte (même hauteur), les débuts de
+    colonnes sont les abscisses où commencent des segments de texte (après un
+    blanc large) sur au moins trois lignes, et chaque ligne de texte devient
+    une ligne du tableau. Une cellule haute ressort donc en plusieurs lignes
+    de suite, que la lecture de la NCM recolle (`lecture_ncm._regrouper`)."""
+    mots = page.extract_words(x_tolerance=1.5, y_tolerance=2)
+    if len(mots) < 6:
+        return []
+    lignes: List[List[dict]] = []
+    for w in sorted(mots, key=lambda w: (w["top"], w["x0"])):
+        if lignes and abs(lignes[-1][0]["top"] - w["top"]) <= 3:
+            lignes[-1].append(w)
+        else:
+            lignes.append([w])
+    for l in lignes:
+        l.sort(key=lambda w: w["x0"])
+    # débuts de segments : premier mot de la ligne, ou mot précédé d'un blanc large (> 1,2 × hauteur)
+    debuts: List[float] = []
+    for l in lignes:
+        prec = None
+        for w in l:
+            if prec is None or w["x0"] - prec["x1"] > 1.2 * max(w["height"], 4.0):
+                debuts.append(w["x0"])
+            prec = w
+    debuts.sort()
+    groupes: List[List[float]] = []
+    for x in debuts:
+        if groupes and x - groupes[-1][-1] <= 4:
+            groupes[-1].append(x)
+        else:
+            groupes.append([x])
+    minimum = max(3, len(lignes) // 5)
+    colonnes = sorted(sum(g) / len(g) for g in groupes if len(g) >= minimum)
+    if len(colonnes) < 2:
+        return []
+    t = Tableau(fichier, f"page {numero_page}, tableau 1")
+    for i, l in enumerate(lignes, start=1):
+        cellules = [""] * len(colonnes)
+        for w in l:
+            c = max((k for k, x in enumerate(colonnes) if x - 3 <= w["x0"]), default=0)
+            cellules[c] = (cellules[c] + " " + w["text"]).strip() if cellules[c] else w["text"]
+        t.ajouter(cellules, i)
+    return [t] if len(t.lignes) >= 2 else []
+
+
 def lire_pdf(chemin: Path, ocr: bool = False) -> List[Tableau]:
     """Tableaux détectés par pdfplumber ; avec `ocr`, les pages sans couche
     texte passent par l'OCR de secours et leurs tableaux sont reconstruits
@@ -109,7 +160,12 @@ def lire_pdf(chemin: Path, ocr: bool = False) -> List[Tableau]:
                 tables = page.extract_tables() or []
             except Exception:  # pragma: no cover - dépend du PDF
                 tables = []
-            if not tables and ocr and not (page.extract_text() or "").strip():
+            texte_page = (page.extract_text() or "").strip()
+            if not tables and texte_page:
+                # pas de quadrillage : lecture ligne par ligne, colonnes déduites des alignements
+                bruts.extend(tableau_par_alignements(page, str(chemin), p))
+                continue
+            if not tables and ocr and not texte_page:
                 scannees.append(p)
             for k, table in enumerate(tables, start=1):
                 t = Tableau(str(chemin), f"page {p}, tableau {k}")

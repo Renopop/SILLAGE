@@ -149,6 +149,13 @@ OCR). Pour une NCM scannée, les tableaux sont reconstruits depuis les
 lignes à barres verticales du texte rendu, et le diagnostic indique
 combien de tableaux viennent de l'OCR, à relire.
 
+Les tableaux sont lus **ligne par ligne** : dans un PDF sans quadrillage,
+les colonnes sont déduites des alignements du texte et chaque ligne de texte
+devient une ligne de tableau ; une cellule haute (le statut « Partially
+compliant » écrit sur deux lignes, ou centré dans une ligne haute) ressort
+en lignes de suite, qui sont recollées à la ligne de l'identifiant avant
+toute lecture. Même recollage dans un tableur ou un tableau OCR.
+
 Une NCM qui se déclare pré-filtrée (« unless listed below, all other items
 can be assumed compliant ») est reconnue : les exigences absentes reçoivent
 le statut C avec l'alerte « conforme implicite » au lieu de « trou »

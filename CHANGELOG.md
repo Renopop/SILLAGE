@@ -2,6 +2,27 @@
 
 Numérotation MAJEUR.MINEUR.CORRECTIF ; version dans `sillage/version.py`.
 
+## 0.8.2 — 2026-11-06 (tableaux lus ligne par ligne)
+
+Retour terrain : des « Partially compliant » ressortaient en « Compliant ».
+Dans un PDF sans quadrillage, une cellule haute est découpée en lignes de
+texte : la ligne de l'identifiant ne portait qu'un morceau du statut (ou
+rien), le reste était perdu.
+
+- `tableaux.tableau_par_alignements` : une page PDF sans quadrillage est
+  lue ligne par ligne, les colonnes déduites des abscisses où commencent
+  des segments de texte sur au moins trois lignes ; chaque ligne de texte
+  devient une ligne du tableau (le repli « text » de pdfplumber découpait
+  les mots en colonnes fantômes).
+- `lecture_ncm._regrouper` : les lignes de suite (vides jusqu'à la colonne
+  des identifiants incluse, sans titre de section) sont recollées cellule à
+  cellule à la ligne de l'identifiant qui précède ; les seuils de
+  reconnaissance des colonnes comptent les lignes logiques ; la colonne qui
+  répète l'exigence est reconnue même quand la ligne n'en porte que le début.
+  Même recollage pour les tableurs et les tableaux OCR.
+- Tests : NCM PDF sans quadrillage avec statuts sur deux lignes, tableur
+  avec réponses sur plusieurs lignes et ligne de titre intercalée.
+
 ## 0.8.1 — 2026-11-06 (OCR de secours)
 
 - `sillage/ocr.py` : OCR de secours des PDF scannés, comme dans l'indexeur

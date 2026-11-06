@@ -105,7 +105,10 @@ def reconnaitre_colonnes(tableau: Tableau, motif: MotifIdentifiant, dico: Dictio
     donnees = [l for k, l in enumerate(lignes) if ligne_en_tete is None or k > ligne_en_tete]
     if not donnees:
         return None
-    if scores_id[col_id] < SEUIL_ID * len(donnees):
+    # lignes logiques : une ligne vide jusqu'à la colonne des identifiants incluse est une
+    # ligne de suite (cellule haute d'un PDF lu ligne par ligne), pas une ligne sans identifiant
+    logiques = [l for l in donnees if any(_cellule(l, c) for c in range(col_id + 1))]
+    if not logiques or scores_id[col_id] < SEUIL_ID * len(logiques):
         return None
 
     # profil fournisseur
@@ -124,7 +127,7 @@ def reconnaitre_colonnes(tableau: Tableau, motif: MotifIdentifiant, dico: Dictio
         n = sum(1 for l in donnees if dico.reconnaitre(_cellule(l, c)) is not None and len(_cellule(l, c)) <= 60)
         if n > meilleur:
             meilleur, col_statut = n, c
-    if col_statut is not None and meilleur < SEUIL_STATUT * len(donnees):
+    if col_statut is not None and meilleur < SEUIL_STATUT * len(logiques):
         col_statut = None
     if col_statut is None:
         # repli : un en-tête de statut explicite avec des valeurs courtes (vocabulaire inconnu du dictionnaire)
@@ -162,7 +165,9 @@ def reconnaitre_colonnes(tableau: Tableau, motif: MotifIdentifiant, dico: Dictio
                 if not attendu or len(attendu) < 12:
                     continue
                 comparables += 1
-                if _debut(_cellule(l, c)) == attendu:
+                trouve = _debut(_cellule(l, c))
+                # une cellule haute lue ligne par ligne ne porte que le début du texte
+                if len(trouve) >= 12 and (trouve.startswith(attendu) or attendu.startswith(trouve)):
                     concordants += 1
             if comparables and concordants >= SEUIL_EXIGENCE * comparables:
                 autres["exigence"] = c
@@ -281,11 +286,45 @@ def _declaree_prefiltree(chemin: Path, tableaux: Sequence[Tableau], ocr: bool = 
     return any(_PREFILTREE.search(x) for x in textes)
 
 
+def _continuation(l: Sequence[str], cols: Colonnes) -> bool:
+    """Ligne de tableau qui prolonge la précédente : rien jusqu'à la colonne
+    des identifiants incluse, au moins une cellule remplie, et aucune cellule
+    qui soit un titre de section."""
+    from .textes import est_titre
+    if any(_cellule(l, c) for c in range(cols.id + 1)):   # cellule d'identifiant remplie sans identifiant : note, pas suite
+        return False
+    if not any(l):
+        return False
+    return not any(est_titre(c) for c in l if c)
+
+
+def _regrouper(t: Tableau, cols: Colonnes, motif: MotifIdentifiant) -> List[tuple]:
+    """Lignes logiques (cellules, numéro de la première ligne) : une ligne sans
+    identifiant qui suit une ligne avec identifiant, et qui en a l'allure
+    (`_continuation`), lui est recollée cellule à cellule. C'est le cas des
+    cellules hautes des PDF sans quadrillage (« Partially » sur une ligne,
+    « compliant » sur la suivante) et des tableaux reconstruits par l'OCR."""
+    debut = 0 if cols.ligne_en_tete is None else cols.ligne_en_tete + 1
+    nb = t.nb_colonnes
+    groupes: List[tuple] = []          # [cellules, numéro, a_id]
+    for k in range(debut, len(t.lignes)):
+        l = list(t.lignes[k]) + [""] * (nb - len(t.lignes[k]))
+        num = t.numeros[k] if k < len(t.numeros) else k + 1
+        cid = _cellule(l, cols.id)
+        a_id = len(cid) <= LONGUEUR_ID_MAX and bool(motif.trouver(cid))
+        if not a_id and groupes and groupes[-1][2] and _continuation(l, cols):
+            prec = groupes[-1][0]
+            for c in range(nb):
+                if l[c]:
+                    prec[c] = (prec[c] + " " + l[c]).strip() if prec[c] else l[c]
+            continue
+        groupes.append([l, num, a_id])
+    return [(g[0], g[1]) for g in groupes]
+
+
 def _lire_lignes(t: Tableau, cols: Colonnes, motif: MotifIdentifiant, dico: DictionnaireStatuts,
                  ncm: NCM, diag: Diagnostic) -> None:
-    debut = 0 if cols.ligne_en_tete is None else cols.ligne_en_tete + 1
-    for k in range(debut, len(t.lignes)):
-        l = t.lignes[k]
+    for l, numero in _regrouper(t, cols, motif):
         diag.lignes_total += 1
         cellule_id = _cellule(l, cols.id)
         ids = motif.extraire(cellule_id) if len(cellule_id) <= LONGUEUR_ID_MAX else []
@@ -303,7 +342,7 @@ def _lire_lignes(t: Tableau, cols: Colonnes, motif: MotifIdentifiant, dico: Dict
             h = cols.en_tetes[c] if c < len(cols.en_tetes) and cols.en_tetes[c] else f"colonne {c + 1}"
             brut[h] = _cellule(l, c)
         champs = {role: _cellule(l, c) for role, c in cols.autres.items() if _cellule(l, c)}
-        origine = Origine(t.fichier, t.emplacement, t.numeros[k] if k < len(t.numeros) else k + 1)
+        origine = Origine(t.fichier, t.emplacement, numero)
         for ident in ids:
             ncm.lignes.append(LigneNCM(
                 id=ident, statut=statut, statut_brut=brut_statut,

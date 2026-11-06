@@ -149,9 +149,13 @@ texte partent en OCR ; et si la couche texte existe mais ne donne rien
 (scan OCRisé par le scanner : « Tableaux lus : 2, retenus : 0 »), toutes
 les pages sont relues par le modèle Vision. « Forcer sur toutes les pages »
 (`--ocr-forcer`) saute la couche texte d'emblée. La consigne demande au
-modèle des tableaux en lignes à barres verticales, une ligne par rangée :
-SILLAGE les reconstruit, et le diagnostic indique combien de tableaux
-viennent de l'OCR, à relire. La commande `inspecter fichier.pdf --spec
+modèle des tableaux en lignes à barres verticales, une ligne par rangée ;
+mais SILLAGE ne s'y fie pas : le texte OCR d'une NCM est lu **par
+identifiant** (chaque identifiant en tête de ligne ouvre une ligne qui
+court jusqu'au prochain ; le statut est cherché après le texte de
+l'exigence, le reste est le commentaire), avec tolérance aux confusions de
+caractères de l'OCR dans les identifiants (O/0, B/8, I/1…). Le diagnostic
+indique combien de tableaux viennent de l'OCR, à relire. La commande `inspecter fichier.pdf --spec
 spec.pdf --sortie rapport.txt` montre ce que SILLAGE voit page par page.
 
 Les tableaux sont lus **ligne par ligne** : dans un PDF sans quadrillage,

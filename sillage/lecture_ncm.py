@@ -274,13 +274,23 @@ def lire_ncm(chemin, motif: Optional[MotifIdentifiant] = None, dico: Optional[Di
         # ne donne rien : relecture ligne par ligne, colonnes déduites des alignements
         relire(lire_tableaux(chemin, ocr=ocr, alignements=True),
                "quadrillage du PDF inexploitable : pages lues ligne par ligne, colonnes déduites des alignements du texte (à relire)")
-    if colonnes_retenues is None and est_pdf and ocr and ocr != "forcer":
-        # la couche texte elle-même est inexploitable (OCR du scanner) : toutes les pages relues par le modèle Vision
+    if est_pdf and ocr and (colonnes_retenues is None or ocr == "forcer"):
+        # la couche texte (OCR du scanner) ou les tableaux à barres du modèle ne suffisent pas :
+        # toutes les pages relues par le modèle Vision, lecture par identifiant (en mode « forcer »,
+        # la lecture par identifiant remplace les tableaux à barres si elle trouve plus d'identifiants)
         try:
-            relire(lire_tableaux(chemin, ocr="forcer"),
-                   "couche texte du PDF inexploitable : toutes les pages relues par l'OCR de secours, tableaux reconstruits (à relire)")
-            if colonnes_retenues is not None:
-                ocr = "forcer"
+            from .ocr import pages_ocr, tableaux_par_identifiants
+            par_ids = tableaux_par_identifiants(pages_ocr(chemin), motif, dico, str(chemin), textes_referentiel)
+            if colonnes_retenues is None or _lignes_avec_id(par_ids, motif) > diag.lignes_avec_id:
+                diag.lignes_total = diag.lignes_avec_id = diag.lignes_pivot = diag.statuts_reconnus = 0
+                diag.statuts_inconnus.clear()
+                diag.tableaux_retenus = 0
+                del ncm.lignes[:]
+                colonnes_retenues = None
+                relire(par_ids, "pages relues par l'OCR de secours, lecture par identifiant : chaque identifiant en tête "
+                                "de ligne ouvre une ligne, le statut est cherché après le texte de l'exigence (à relire)")
+                if colonnes_retenues is not None:
+                    ocr = "forcer"
         except RuntimeError as exc:
             diag.avertissements.append(str(exc))
 
@@ -326,6 +336,10 @@ def _declaree_prefiltree(chemin: Path, tableaux: Sequence[Tableau], ocr: bool = 
         except Exception:   # un document illisible hors tableaux n'empêche pas la lecture
             pass
     return any(_PREFILTREE.search(x) for x in textes)
+
+
+def _lignes_avec_id(tableaux: Sequence[Tableau], motif: MotifIdentifiant) -> int:
+    return sum(1 for t in tableaux for l in t.lignes[1:] if l and len(l[0]) <= LONGUEUR_ID_MAX and motif.trouver(l[0]))
 
 
 def _effondre(t: Tableau, motif: MotifIdentifiant) -> bool:

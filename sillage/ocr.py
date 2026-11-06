@@ -238,9 +238,122 @@ def _tableaux(texte: str, fichier: str, page: int, barres: bool) -> List[Tableau
     return [t for t in out if len(t.lignes) >= 2]
 
 
+# --- lecture par identifiants ----------------------------------------------------
+EN_TETE_IDENTIFIANTS = ["Identifiant", "Exigence", "Statut", "Commentaire"]
+_AVANT_ID = re.compile(r"^\s*\|?\s*(?:\d{1,5}\s*\|?\s*)?[\[\(\{<«]?\s*$")   # ce qui peut précéder l'identifiant sur sa ligne
+_PHRASES_STATUT = [
+    # (expression, statut) — du plus spécifique au plus général ; cherchées comme mots entiers
+    (r"not\s+applicable|non\s+applicable|sans\s+objet|out\s+of\s+scope|n\s*/\s*a\b", "NA"),
+    (r"partial(?:ly)?\s+compliant|partial\s+compliance|partiellement\s+conforme|partly\s+compliant|partially\s+met", "PC"),
+    (r"non[\s-]*compliant|not\s+compliant|non[\s-]*conforme|not\s+met|deviation\s+requested", "NC"),
+    (r"fully\s+compliant|full\s+compliance|compliant|conforme|complies", "C"),
+    (r"\bpartial(?:ly)?\b|\bpartiel(?:le)?\b", "PC"),
+    (r"\bdeviation\b", "NC"),
+]
+
+
+def tableaux_par_identifiants(textes_pages: Dict[int, str], motif, dico, fichier: str,
+                              textes_ref: Optional[Dict[str, str]] = None) -> List[Tableau]:
+    """Tableaux reconstruits depuis le texte OCR par **lecture par identifiant** :
+    chaque identifiant en tête de ligne (après au plus un numéro d'ordre et
+    des barres) ouvre une ligne de NCM qui court jusqu'au prochain. Dans la
+    ligne, le statut est cherché après le texte de l'exigence (repéré grâce
+    au référentiel quand il est donné), le reste est le commentaire. Les
+    barres verticales, quand le modèle en met, servent à délimiter les
+    cellules ; sinon le texte est lu tel quel. Les identifiants sont lus avec
+    tolérance aux confusions de l'OCR. Un tableau par page, colonnes
+    Identifiant / Exigence / Statut / Commentaire."""
+    tolerant = motif.tolerant()
+    out: List[Tableau] = []
+    for page in sorted(textes_pages):
+        texte = textes_pages[page] or ""
+        debuts = []
+        for ident, brut, d, f in tolerant.trouver(texte):
+            avant = texte[texte.rfind("\n", 0, d) + 1:d]
+            if _AVANT_ID.match(avant):
+                debuts.append((ident, d, f))
+        if not debuts:
+            continue
+        t = Tableau(fichier, f"page {page}, tableau 1", ocr=True)
+        t.ajouter(list(EN_TETE_IDENTIFIANTS), 0)
+        for k, (ident, d, f) in enumerate(debuts):
+            fin = debuts[k + 1][1] if k + 1 < len(debuts) else len(texte)
+            segment = texte[f:fin]
+            # la fin de la ligne précédente (numéro d'ordre, barres) ne fait pas partie du segment
+            if k + 1 < len(debuts):
+                coupe = segment.rfind("\n")
+                queue = segment[coupe + 1:] if coupe >= 0 else segment
+                if coupe >= 0 and _AVANT_ID.match(queue):
+                    segment = segment[:coupe]
+            exigence, statut, commentaire = _decouper(_nettoyer_segment(segment), dico, (textes_ref or {}).get(ident, ""))
+            t.ajouter([ident, exigence, statut, commentaire], texte.count("\n", 0, d) + 1)
+        if len(t.lignes) >= 2:
+            out.append(t)
+    return out
+
+
+_ORDRE = re.compile(r"^\s*\|?\s*\d{1,5}\s*\|?\s*")          # numéro d'ordre (RR ID) en tête de ligne
+_PIED = re.compile(r"\d{1,4}\s*/\s*\d{1,4}\s*$")              # « 1/3 » en fin de ligne : pied de page
+
+
+def _nettoyer_segment(segment: str) -> str:
+    """Retire d'un segment les lignes qui ne sont pas de la ligne de NCM :
+    titres de section (avec ou sans numéro d'ordre), bruit de mise en page,
+    pieds de page."""
+    from .textes import _BRUIT, est_titre
+    gardees = []
+    for ligne in segment.splitlines():
+        s = ligne.strip()
+        if not s:
+            continue
+        sans_ordre = _ORDRE.sub("", s)
+        if est_titre(sans_ordre) or _BRUIT.fullmatch(s) or (_PIED.search(s) and len(s) < 120 and "|" not in s):
+            continue
+        gardees.append(ligne)
+    return "\n".join(gardees)
+
+
+def _mots(s: str) -> List[str]:
+    return re.findall(r"[a-z0-9]+", s.lower())
+
+
+def _decouper(segment: str, dico, texte_ref: str) -> Tuple[str, str, str]:
+    """(exigence, statut brut, commentaire) d'un segment de ligne OCR."""
+    plat = re.sub(r"\s+", " ", segment.replace("\n", " ")).strip(" |]})>»")
+    if "|" in plat:
+        cellules = [c.strip() for c in plat.split("|")]
+        cellules = [c for c in cellules if c]
+        for i, c in enumerate(cellules):
+            if len(c) <= 40 and dico.reconnaitre(c) is not None:
+                return " ".join(cellules[:i]), c, " ".join(cellules[i + 1:])
+        plat = " ".join(cellules)
+    # fin du texte de l'exigence : ses trois derniers mots, retrouvés dans le segment
+    debut_statut = 0
+    mots_ref = _mots(texte_ref)
+    if len(mots_ref) >= 3:
+        fin_ref = r"\W+".join(re.escape(m) for m in mots_ref[-3:])
+        m = re.search(fin_ref, plat, re.IGNORECASE)
+        if m:
+            debut_statut = m.end()
+    zone = plat[debut_statut:]
+    # toutes les occurrences d'expressions de statut, les plus spécifiques masquant celles qu'elles contiennent
+    occurrences: List[Tuple[int, int]] = []
+    for expr, _statut in _PHRASES_STATUT:
+        for m in re.finditer(r"(?<![A-Za-z])(?:" + expr + r")(?![A-Za-z])", zone, re.IGNORECASE):
+            if not any(a <= m.start() and m.end() <= b for a, b in occurrences):
+                occurrences.append((m.start(), m.end()))
+    if not occurrences:
+        return plat, "", ""
+    # après la fin de l'exigence : la première occurrence ; sinon la dernière (le statut suit le texte)
+    meilleur = min(occurrences) if debut_statut else max(occurrences)
+    a, b = debut_statut + meilleur[0], debut_statut + meilleur[1]
+    return plat[:a].strip(" |-–—:"), plat[a:b].strip(), plat[b:].strip(" |-–—:")
+
+
 def oublier() -> None:
     """Vide le mémo de session (tests)."""
     _MEMO.clear()
 
 
-__all__ = ["FORCER", "disponible", "pages_sans_texte", "pages_ocr", "tableaux_depuis_texte", "oublier"]
+__all__ = ["FORCER", "disponible", "pages_sans_texte", "pages_ocr", "tableaux_depuis_texte",
+           "tableaux_par_identifiants", "oublier"]

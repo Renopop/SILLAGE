@@ -2,6 +2,34 @@
 
 Numérotation MAJEUR.MINEUR.CORRECTIF ; version dans `sillage/version.py`.
 
+## 0.8.5 — 2026-11-06 (OCR : lecture par identifiant, identifiants tolérants)
+
+Retour terrain : 17 % des exigences traitées après l'OCR. Les tableaux à
+barres rendus par le modèle Vision ne sont pas fiables (cellules longues
+renvoyées à la ligne, tableaux coupés, barres absentes sur certaines
+rangées), des identifiants sortent avec des confusions de caractères, et
+l'interprétation dépendait de l'alignement des colonnes.
+
+- `ocr.tableaux_par_identifiants` : **lecture par identifiant** du texte
+  OCR. Chaque identifiant en tête de ligne (après au plus un numéro d'ordre
+  et des barres) ouvre une ligne de NCM qui court jusqu'au prochain ; les
+  titres de section, le bruit et les pieds de page sont retirés ; les
+  barres, quand il y en a, délimitent les cellules ; sinon le statut est
+  cherché **après le texte de l'exigence** (fin repérée par ses trois
+  derniers mots dans le référentiel), les expressions les plus spécifiques
+  masquant les plus générales (« Partially compliant » n'est jamais lu
+  « Compliant », « compliant » cité dans un commentaire ne détrône pas le
+  statut). Un tableau par page, colonnes Identifiant / Exigence / Statut /
+  Commentaire.
+- `MotifIdentifiant.tolerant()` : pour le texte OCR, chaque caractère des
+  préfixes connus admet ses confusions usuelles (O/0/Q, B/8, I/1/l, S/5,
+  Z/2, G/6), les séparateurs sont libres, les chiffres du numéro peuvent
+  avoir été lus comme des lettres (« [REO_B2-3_64] », « REQ_82-3_66 »,
+  « REQ_B2-3_I6 » → REQ_B2-3_64, _66, _16).
+- Chaîne de lecture : la lecture par identifiant est le dernier recours
+  avec l'OCR de secours ; en mode « forcer », elle remplace les tableaux à
+  barres dès qu'elle trouve plus d'identifiants. Le diagnostic le dit.
+
 ## 0.8.4 — 2026-11-06 (OCR Vision sur couche texte inexploitable, tableaux reconstruits)
 
 Retour terrain : l'OCR de secours ne se déclenchait pas, parce que la NCM

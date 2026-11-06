@@ -42,6 +42,18 @@ PLAGE_MAX = 2000   # au-delà, une plage n'est pas dépliée (probable erreur de
 
 _DECOMPOSE = re.compile(r"^(.*?)([-_])(\d+)((?:\.\d+|[a-z])?)$")
 
+# Confusions de l'OCR : un caractère attendu et ce qu'un modèle peut lire à sa place.
+_CONFUSIONS = {"0": "0OoQD", "1": "1Il|", "2": "2Z", "5": "5S", "6": "6G", "8": "8B",
+               "O": "O0Q", "Q": "Q0O", "B": "B8", "S": "S5", "I": "I1l", "Z": "Z2", "G": "G6", "D": "D0"}
+_CHIFFRES = str.maketrans({"O": "0", "o": "0", "I": "1", "l": "1", "S": "5", "B": "8"})
+
+
+def _classe(c: str) -> str:
+    """Classe regex d'un caractère de préfixe, confusions OCR comprises, casse libre."""
+    variantes = set(_CONFUSIONS.get(c.upper(), c))
+    variantes |= {c.upper(), c.lower()}
+    return "[" + "".join(sorted(re.escape(v) for v in variantes)) + "]"
+
 
 def _sep_canonique(sep: str) -> str:
     return "_" if sep == "_" else "-"
@@ -106,6 +118,23 @@ class MotifIdentifiant:
             prefixe, sep = self._canon[_compact(prefixe)]
         return normaliser(prefixe, m.group(3), m.group(4), sep)
 
+    # --- lecture tolérante (texte OCR) -------------------------------------------
+    def tolerant(self) -> "MotifIdentifiant":
+        """Variante pour du texte OCR : chaque caractère des préfixes connus
+        admet ses confusions usuelles (O/0/Q, B/8, I/1/l, S/5, Z/2, G/6), les
+        séparateurs sont libres, et les chiffres du numéro peuvent être lus
+        comme des lettres (O, I, l, S, B). Sans préfixes connus : inchangé."""
+        if not self.prefixes:
+            return self
+        m = MotifIdentifiant(self.prefixes, self.separateurs)
+        m._par_prefixe = []
+        for p in sorted(self.prefixes, key=len, reverse=True):
+            segments = [s for s in re.split(r"[-_ ]", p) if s]
+            motif = r"[-_ .]?".join("".join(_classe(c) for c in s) for s in segments)
+            m._par_prefixe.append((p, self.separateurs.get(p, "-"), re.compile(
+                r"(?<![A-Za-z0-9])" + motif + r"[-_ .:]?\s?([0-9OoIlSB]{1,7})(" + _SUFFIXE + r")(?![A-Za-z0-9])")))
+        return m
+
     def canoniser(self, ident: str) -> str:
         """Ramène un identifiant normalisé par le motif générique à l'écriture
         de ce motif (même préfixe compact) ; inchangé s'il n'en relève pas."""
@@ -122,6 +151,25 @@ class MotifIdentifiant:
         """Occurrences (id normalisé, texte brut, début, fin) dans l'ordre."""
         if not texte:
             return []
+        par_prefixe = getattr(self, "_par_prefixe", None)
+        if par_prefixe:
+            occ = []
+            for prefixe, sep, rx in par_prefixe:
+                for m in rx.finditer(texte):
+                    numero = m.group(1).translate(_CHIFFRES)
+                    if not numero.isdigit():
+                        continue
+                    occ.append((normaliser(prefixe, numero, m.group(2), sep), m.group(0), m.start(), m.end()))
+            occ.sort(key=lambda o: o[2])
+            # deux préfixes connus qui se recouvrent : garder la plus longue occurrence
+            retenues: List[Tuple[str, str, int, int]] = []
+            for o in occ:
+                if retenues and o[2] < retenues[-1][3]:
+                    if o[3] - o[2] > retenues[-1][3] - retenues[-1][2]:
+                        retenues[-1] = o
+                    continue
+                retenues.append(o)
+            return retenues
         return [(self._normaliser(m), m.group(0), m.start(), m.end()) for m in self._re.finditer(texte)]
 
     def extraire(self, texte: str, deplier_plages: bool = True) -> List[str]:

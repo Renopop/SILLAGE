@@ -171,3 +171,73 @@ def test_tableau_ocr_sans_barres():
     texte = "RR ID   DA ID            Compliance           Comments\n135     [REQ_B2-3_34]    Compliant            Should be transferred.\n151     [REQ_B2-3_16]    Partially compliant   To be agreed.\n"
     t = ocr.tableaux_depuis_texte(texte, "f.pdf", 1)
     assert len(t) == 1 and t[0].lignes[2] == ["151", "[REQ_B2-3_16]", "Partially compliant", "To be agreed."]
+
+
+OCR_DESORDONNE = """Rolls-Royce Non-Compliance Matrix - RR DA RB3070 021 B2-3 Rev4
+This document comes pre-filtered. Unless listed below, all other items can be assumed compliant.
+| RR ID | DA ID | DGT 165737 A | Rolls-Royce Compliance | Comments |
+|---|---|---|---|---|
+| 127 | | 5.1.2.1.4.1 Auto-throttle and Auto thrust architecture | | |
+| 135 | [REQ_B2-3_34] | However, last data set shall be delivered to DASSAULT and the Avionics Supplier no later than 6 months before first
+flight. | Compliant | Should be transferred to SOW. |
+150 5.1.2.2.1 Inadvertent Shut Down
+151 [REQ_B2-3_41] The engine control system shall be designed to protect from inadvertent flight engine shut down when the other one is
+inoperative (logic architecture to be proposed by SUPPLIER). Compliant Rolls-Royce assumes that DA takes ownership of proving that this is compliant with the safety policy.
+| 194 | [REO_B2-3_64] | The command of the customer bleed valves controlled by the FADEC shall take into account aircraft orders. | N/A | Requirement not applicable to RR. |
+196 [REQ_82-3_66] The FADEC shall provision the capability to monitor bleed temperature and bleed pressure at pylon interface. Partially compliant Based on discussions 22nd June Rolls-Royce will study solutions with DA. The temperature sensor needs to be a simplex thermocouple.
+| 232 | [REQ_B2-3_79] | The FADEC shall be capable of measuring the engine vibration throughout the engine frequency range. |
+Compliant | The requested functionality is facilitated via the EVHMU. |
+Rolls-Royce confidential and proprietary information 1/3
+"""
+
+TEXTES_REF = {
+    "REQ_B2-3_34": "Last data set shall be delivered to DASSAULT and the Avionics Supplier no later than 6 months before first flight.",
+    "REQ_B2-3_41": "The engine control system shall be designed to protect from inadvertent flight engine shut down when the other one is inoperative (logic architecture to be proposed by SUPPLIER).",
+    "REQ_B2-3_64": "The command of the customer bleed valves controlled by the FADEC shall take into account aircraft orders.",
+    "REQ_B2-3_66": "The FADEC shall provision the capability to monitor bleed temperature and bleed pressure at pylon interface.",
+    "REQ_B2-3_79": "The FADEC shall be capable of measuring the engine vibration throughout the engine frequency range.",
+}
+
+
+def test_motif_tolerant_aux_confusions_ocr():
+    from sillage.identifiants import deduire_motif
+    m = deduire_motif(["[REQ_B2-3_15]"]).tolerant()
+    assert m.extraire("[REO_B2-3_64] et REQ_82-3_66, REQ B2 3 79, [REQ_B2-3_I6]") == \
+        ["REQ_B2-3_64", "REQ_B2-3_66", "REQ_B2-3_79", "REQ_B2-3_16"]
+    assert m.extraire("see DO-178C and B2-1 ratings") == []
+
+
+def test_tableaux_par_identifiants_sur_ocr_desordonne():
+    from sillage.identifiants import deduire_motif
+    motif = deduire_motif(["[REQ_B2-3_15]"])
+    tabs = ocr.tableaux_par_identifiants({1: OCR_DESORDONNE}, motif, DictionnaireStatuts(), "ncm.pdf", TEXTES_REF)
+    assert len(tabs) == 1
+    t = tabs[0]
+    assert t.lignes[0] == ["Identifiant", "Exigence", "Statut", "Commentaire"]
+    rangees = {l[0]: l for l in t.lignes[1:]}
+    assert list(rangees) == ["REQ_B2-3_34", "REQ_B2-3_41", "REQ_B2-3_64", "REQ_B2-3_66", "REQ_B2-3_79"]
+    assert rangees["REQ_B2-3_34"][2] == "Compliant" and rangees["REQ_B2-3_34"][3] == "Should be transferred to SOW."
+    # « compliant » cité dans le commentaire ne détrône pas le statut placé après le texte de l'exigence
+    assert rangees["REQ_B2-3_41"][2] == "Compliant" and rangees["REQ_B2-3_41"][3].startswith("Rolls-Royce assumes")
+    assert rangees["REQ_B2-3_64"][2] == "N/A"
+    assert rangees["REQ_B2-3_66"][2] == "Partially compliant"
+    assert rangees["REQ_B2-3_66"][3].startswith("Based on discussions")
+    assert rangees["REQ_B2-3_79"][2] == "Compliant"      # statut renvoyé à la ligne par le modèle
+    assert rangees["REQ_B2-3_66"][1].startswith("The FADEC shall provision")
+
+
+def test_ncm_scannee_lue_par_identifiants(tmp_path, monkeypatch):
+    from sillage.identifiants import deduire_motif
+    monkeypatch.setattr(ocr, "pages_ocr", lambda pdf, pages=None, progression=None, log=None: {1: OCR_DESORDONNE})
+    ocr.oublier()
+    motif = deduire_motif(["[REQ_B2-3_15]"])
+    ncm = lire_ncm(_pdf_blanc(tmp_path / "ncm.pdf"), motif, DictionnaireStatuts(), ids_referentiel=list(TEXTES_REF),
+                   textes_referentiel=TEXTES_REF, ocr=True)
+    assert ncm.ids == ["REQ_B2-3_34", "REQ_B2-3_41", "REQ_B2-3_64", "REQ_B2-3_66", "REQ_B2-3_79"]
+    par = ncm.par_id()
+    assert par["REQ_B2-3_66"][0].statut is Statut.PARTIEL
+    assert par["REQ_B2-3_64"][0].statut is Statut.NON_APPLICABLE
+    assert par["REQ_B2-3_41"][0].justification.startswith("Rolls-Royce assumes")
+    assert ncm.diagnostic.colonnes["exigence"] == "Exigence" and ncm.diagnostic.colonnes["justification"] == "Commentaire"
+    assert ncm.diagnostic.taux_couverture == 1.0 and ncm.diagnostic.prefiltree
+    assert any("lecture par identifiant" in a for a in ncm.diagnostic.avertissements)

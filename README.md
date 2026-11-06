@@ -140,7 +140,14 @@ suivi du texte ; le texte court jusqu'au prochain identifiant ou titre de
 section. L'identifiant peut avoir un préfixe composé (« [REQ_B2-3_15] ») :
 le numéro est le dernier groupe de chiffres, et toutes les écritures du
 fournisseur (« REQ-B2-3-015 », « req_b2_3_15 ») se ramènent à celle de la
-spécification. Un PDF sans couche texte (scan) est signalé comme tel.
+spécification. Un PDF sans couche texte (scan) est signalé comme tel ; avec
+l'**OCR de secours** (`--ocr`, case « OCR de secours » dans l'interface), ses
+pages sont lues par le modèle Vision de la passerelle, comme dans
+l'indexeur de RIVAGE (même clé `RIVAGE_SYNTH_KEY`, même cache de pages ;
+chaque page est un appel payant, seules les pages sans texte partent en
+OCR). Pour une NCM scannée, les tableaux sont reconstruits depuis les
+lignes à barres verticales du texte rendu, et le diagnostic indique
+combien de tableaux viennent de l'OCR, à relire.
 
 Une NCM qui se déclare pré-filtrée (« unless listed below, all other items
 can be assumed compliant ») est reconnue : les exigences absentes reçoivent

@@ -122,7 +122,7 @@ class Application(tk.Tk):
         d = {"spec": self.v_spec.get(), "projet": self.v_projet.get(), "fournisseur": self.v_fournisseur.get(), "ncm": self.v_ncm.get(),
              "documents": self.v_documents.get(), "index": self.v_index.get(),
              "seuil_etaye": self.v_seuil_etaye.get(), "seuil_faible": self.v_seuil_faible.get(),
-             "statuts": self.v_statuts.get()}
+             "statuts": self.v_statuts.get(), "ocr": self.v_ocr.get()}
         try:
             p = self._fichier_reglages()
             p.parent.mkdir(parents=True, exist_ok=True)
@@ -155,6 +155,7 @@ class Application(tk.Tk):
         self.v_projet = tk.StringVar(value=r.get("projet", ""))
         self.v_signee = tk.BooleanVar(value=False)
         self.v_prefiltree = tk.BooleanVar(value=False)
+        self.v_ocr = tk.BooleanVar(value=bool(r.get("ocr", False)))
         self.v_fournisseur = tk.StringVar(value=r.get("fournisseur", ""))
         self.v_ncm = tk.StringVar(value=r.get("ncm", ""))
         self.v_revision = tk.StringVar(value="")
@@ -194,6 +195,7 @@ class Application(tk.Tk):
         ttk.Checkbutton(cases, text="NCM finale signée", variable=self.v_signee).pack(side="left")
         ttk.Checkbutton(cases, text="NCM pré-filtrée (absentes réputées conformes)", variable=self.v_prefiltree,
                         command=lambda: self.calculer_grille() if self.ncm is not None else None).pack(side="left", padx=(12, 0))
+        ttk.Checkbutton(cases, text="OCR de secours (PDF scannés, appels payants)", variable=self.v_ocr).pack(side="left", padx=(12, 0))
 
         # actions : les étapes sur une rangée, les outils et réglages sur la suivante
         actions = ttk.Frame(self)
@@ -440,35 +442,39 @@ class Application(tk.Tk):
         widget.configure(state="disabled")
 
     # --- actions ---------------------------------------------------------------------------
-    def _charger_ref(self, spec: Optional[str] = None):
+    def _charger_ref(self, spec: Optional[str] = None, ocr: Optional[bool] = None):
         """Le référentiel (relu si la spécification a changé). Hors du fil
-        principal, `spec` doit être donné : les variables Tk n'y sont pas lisibles."""
+        principal, `spec` et `ocr` doivent être donnés : les variables Tk n'y
+        sont pas lisibles."""
         from .referentiel import lire_referentiel
         if spec is None:
             spec = self.v_spec.get().strip()
+        if ocr is None:
+            ocr = self.v_ocr.get()
         if not spec:
             raise ValueError("choisissez d'abord la spécification (référentiel)")
         if self.ref is None or self.ref.source != spec:
-            self.ref = lire_referentiel(spec)
+            self.ref = lire_referentiel(spec, ocr=ocr)
         return self.ref
 
-    def _lire_ncm_travail(self, spec: str, ncm_f: str, fournisseur: str, revision: str):
+    def _lire_ncm_travail(self, spec: str, ncm_f: str, fournisseur: str, revision: str, ocr: bool = False):
         from .lecture_ncm import lire_ncm
         from .profils import Profil
         from .statuts import DictionnaireStatuts
-        ref = self._charger_ref(spec)
+        ref = self._charger_ref(spec, ocr)
         if not ncm_f:
             raise ValueError("choisissez la NCM à lire")
         profil = Profil.charger(fournisseur) if fournisseur else None
         return lire_ncm(ncm_f, motif=ref.motif, dico=DictionnaireStatuts.charger(), profil=profil,
                         fournisseur=fournisseur, revision=revision, ids_referentiel=ref.ids,
-                        textes_referentiel={e.id: e.texte for e in ref.exigences})
+                        textes_referentiel={e.id: e.texte for e in ref.exigences}, ocr=ocr)
 
     def lire_ncm(self):
         self._enregistrer_reglages()
         # valeurs lues ICI, dans le fil principal : le fil de travail ne touche pas aux variables Tk
         spec, ncm_f = self.v_spec.get().strip(), self.v_ncm.get().strip()
         fournisseur, revision = self.v_fournisseur.get().strip(), self.v_revision.get().strip()
+        ocr = self.v_ocr.get()
 
         def fin(ncm):
             self.ncm = ncm
@@ -490,7 +496,7 @@ class Application(tk.Tk):
                     return
             self.calculer_grille()
 
-        self._lancer("lecture de la NCM", lambda: self._lire_ncm_travail(spec, ncm_f, fournisseur, revision),
+        self._lancer("lecture de la NCM", lambda: self._lire_ncm_travail(spec, ncm_f, fournisseur, revision, ocr),
                      fin, "Lecture de la NCM…")
 
     def calculer_grille(self):
@@ -606,6 +612,7 @@ class Application(tk.Tk):
             return
         ref, apres = self.ref, self.ncm
         fournisseur = self.v_fournisseur.get().strip()
+        ocr = self.v_ocr.get()
 
         def travail():
             from .controles import comparer
@@ -613,7 +620,7 @@ class Application(tk.Tk):
             from .profils import Profil
             from .statuts import DictionnaireStatuts
             avant = lire_ncm(p, motif=ref.motif, dico=DictionnaireStatuts.charger(),
-                             profil=Profil.charger(fournisseur) if fournisseur else None, fournisseur=fournisseur)
+                             profil=Profil.charger(fournisseur) if fournisseur else None, fournisseur=fournisseur, ocr=ocr)
             return comparer(avant, apres)
 
         def fin(diff):

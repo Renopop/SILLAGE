@@ -136,6 +136,7 @@ class Diagnostic:
     ids_referentiel: int = 0         # taille du référentiel si fourni
     ids_retrouves: int = 0           # identifiants du référentiel présents dans la NCM
     prefiltree: bool = False         # la NCM se déclare pré-filtrée : les exigences absentes sont réputées conformes
+    tableaux_ocr: int = 0            # tableaux reconstruits par l'OCR de secours (pages scannées)
     avertissements: List[str] = field(default_factory=list)
 
     @property
@@ -167,6 +168,8 @@ class Diagnostic:
             lignes.append("Statuts inconnus : " + vals)
         if self.prefiltree:
             lignes.append("NCM pré-filtrée : le document déclare conformes les exigences qu'il ne liste pas")
+        if self.tableaux_ocr:
+            lignes.append(f"Tableaux reconstruits par l'OCR de secours : {self.tableaux_ocr} (à relire : pages scannées)")
         for a in self.avertissements:
             lignes.append("⚠ " + a)
         return "\n".join(lignes)

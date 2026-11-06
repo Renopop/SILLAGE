@@ -28,6 +28,7 @@ class Tableau:
     emplacement: str
     lignes: List[List[str]] = field(default_factory=list)
     numeros: List[int] = field(default_factory=list)   # numéro de ligne d'origine pour chaque ligne
+    ocr: bool = False                                   # tableau reconstruit depuis le texte OCR d'une page scannée
 
     @property
     def nb_colonnes(self) -> int:
@@ -95,22 +96,41 @@ def lire_docx(chemin: Path) -> List[Tableau]:
 
 
 # --- pdf ----------------------------------------------------------------------
-def lire_pdf(chemin: Path) -> List[Tableau]:
+def lire_pdf(chemin: Path, ocr: bool = False) -> List[Tableau]:
+    """Tableaux détectés par pdfplumber ; avec `ocr`, les pages sans couche
+    texte passent par l'OCR de secours et leurs tableaux sont reconstruits
+    depuis le texte rendu (voir `ocr.tableaux_depuis_texte`)."""
     import pdfplumber
     bruts: List[Tableau] = []
+    scannees: List[int] = []
     with pdfplumber.open(str(chemin)) as pdf:
         for p, page in enumerate(pdf.pages, start=1):
             try:
                 tables = page.extract_tables() or []
             except Exception:  # pragma: no cover - dépend du PDF
                 tables = []
+            if not tables and ocr and not (page.extract_text() or "").strip():
+                scannees.append(p)
             for k, table in enumerate(tables, start=1):
                 t = Tableau(str(chemin), f"page {p}, tableau {k}")
                 for i, row in enumerate(table, start=1):
                     t.ajouter([_texte(c) for c in row], i)
                 if t.lignes:
                     bruts.append(t)
+    if scannees:
+        from .ocr import pages_ocr, tableaux_depuis_texte
+        textes = pages_ocr(chemin, scannees)
+        for p in scannees:
+            bruts.extend(tableaux_depuis_texte(textes.get(p, ""), str(chemin), p))
+        bruts.sort(key=_page)
     return _recoller(bruts)
+
+
+def _page(t: Tableau) -> int:
+    try:
+        return int(t.emplacement.split("page ")[1].split(",")[0])
+    except (ValueError, IndexError):
+        return 0
 
 
 def _recoller(tableaux: List[Tableau]) -> List[Tableau]:
@@ -168,10 +188,13 @@ LECTEURS = {
 }
 
 
-def lire_tableaux(chemin) -> List[Tableau]:
+def lire_tableaux(chemin, ocr: bool = False) -> List[Tableau]:
+    """`ocr` : OCR de secours des pages scannées (PDF seulement, appels payants)."""
     p = Path(chemin)
     lecteur = LECTEURS.get(p.suffix.lower())
     if lecteur is None:
         raise ValueError(f"format non pris en charge : {p.suffix or '(sans extension)'} — "
                          f"attendus : {', '.join(sorted(LECTEURS))}")
+    if lecteur is lire_pdf:
+        return lire_pdf(p, ocr=ocr)
     return lecteur(p)

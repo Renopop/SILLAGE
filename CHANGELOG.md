@@ -2,6 +2,26 @@
 
 Numérotation MAJEUR.MINEUR.CORRECTIF ; version dans `sillage/version.py`.
 
+## 0.8.1 — 2026-11-06 (OCR de secours)
+
+- `sillage/ocr.py` : OCR de secours des PDF scannés, comme dans l'indexeur
+  de RIVAGE — les pages sans couche texte sont rendues et lues par le
+  modèle Vision de la passerelle (`llm_ocr` du moteur embarqué, clé
+  `RIVAGE_SYNTH_KEY`, cache de pages de RIVAGE réutilisé, mémo de session).
+  Déclenché seulement à la demande (`--ocr` sur lire, grille, diff, appui,
+  tracer, couverture, fiches ; case « OCR de secours » dans l'interface,
+  mémorisée dans les réglages) et seulement sur les pages sans texte.
+- Spécification scannée : ses pages OCR passent par la même lecture ligne
+  par ligne (titres, en-têtes courants, identifiants entre crochets).
+- NCM scannée : les tableaux sont reconstruits depuis les lignes à barres
+  verticales du texte OCR (séparateurs Markdown ignorés, lignes complétées
+  au nombre de colonnes) et marqués `ocr` ; le diagnostic compte les
+  tableaux reconstruits ; un OCR indisponible (clé absente, moteur) ou
+  incomplet (passerelle saturée) est expliqué dans le diagnostic pour la
+  NCM, levé en erreur claire pour la spécification.
+- `tests/test_ocr.py` : faux modèle Vision, spécification et NCM scannées,
+  PDF mixte (seules les pages sans texte partent en OCR), OCR indisponible.
+
 ## 0.8.0 — 2026-11-06 (terrain : spécifications PDF, identifiants composés, NCM pré-filtrées)
 
 Premier retour terrain : SILLAGE ne trouvait aucune exigence dans une

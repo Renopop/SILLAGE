@@ -27,28 +27,29 @@ from .modele import Statut
 from .version import VERSION_LABEL
 
 
-def _motif_et_ref(spec: Optional[str]):
+def _motif_et_ref(spec: Optional[str], ocr: bool = False):
     from .referentiel import lire_referentiel
     if not spec:
         return None, None
-    ref = lire_referentiel(spec)
+    ref = lire_referentiel(spec, ocr=ocr)
     return ref.motif, ref
 
 
-def _lire(chemin: str, spec: Optional[str], fournisseur: str, revision: str, sans_profil: bool = False):
+def _lire(chemin: str, spec: Optional[str], fournisseur: str, revision: str, sans_profil: bool = False,
+          ocr: bool = False):
     from .lecture_ncm import lire_ncm
     from .profils import Profil
     from .statuts import DictionnaireStatuts
-    motif, ref = _motif_et_ref(spec)
+    motif, ref = _motif_et_ref(spec, ocr)
     profil = None if (sans_profil or not fournisseur) else Profil.charger(fournisseur)
     ncm = lire_ncm(chemin, motif=motif, dico=DictionnaireStatuts.charger(), profil=profil,
                    fournisseur=fournisseur, revision=revision, ids_referentiel=ref.ids if ref else None,
-                   textes_referentiel={e.id: e.texte for e in ref.exigences} if ref else None)
+                   textes_referentiel={e.id: e.texte for e in ref.exigences} if ref else None, ocr=ocr)
     return ncm, ref
 
 
 def cmd_lire(a) -> int:
-    ncm, _ = _lire(a.ncm, a.spec, a.fournisseur, a.revision, a.sans_profil)
+    ncm, _ = _lire(a.ncm, a.spec, a.fournisseur, a.revision, a.sans_profil, a.ocr)
     print(f"{VERSION_LABEL} — lecture de {Path(a.ncm).name}" + (f" (révision {ncm.revision})" if ncm.revision else ""))
     print(ncm.diagnostic.texte())
     if a.json:
@@ -109,7 +110,7 @@ def _couverture(a, ref):
 def cmd_grille(a) -> int:
     from .controles import controler
     from .grille import exporter_grille
-    ncm, ref = _lire(a.ncm, a.spec, a.fournisseur, a.revision, a.sans_profil)
+    ncm, ref = _lire(a.ncm, a.spec, a.fournisseur, a.revision, a.sans_profil, a.ocr)
     if a.prefiltree:
         ncm.prefiltree = True
     elif a.non_prefiltree:
@@ -261,7 +262,7 @@ def cmd_tracer(a) -> int:
     if not disponible():
         print(message_absent(), file=sys.stderr)
         return 1
-    ref = lire_referentiel(a.spec)
+    ref = lire_referentiel(a.spec, ocr=getattr(a, "ocr", False))
     index_dir = a.index
     print(f"{VERSION_LABEL} — traçabilité de {len(ref)} exigences ({Path(a.spec).name}) vers la norme indexée dans {index_dir}")
     def progression(k, n, ident):
@@ -287,7 +288,7 @@ def cmd_tracer(a) -> int:
 def cmd_couverture(a) -> int:
     from .norme import couverture, paragraphes_cites
     from .referentiel import lire_referentiel
-    ref = lire_referentiel(a.spec)
+    ref = lire_referentiel(a.spec, ocr=getattr(a, "ocr", False))
     trac = _tracabilite(a)
     if trac is not None:
         from .norme import appliquer
@@ -344,7 +345,7 @@ def cmd_appui(a) -> int:
 
 def cmd_affaiblissements(a) -> int:
     from .affaiblissements import relever
-    motif, ref = _motif_et_ref(a.spec)
+    motif, ref = _motif_et_ref(a.spec, getattr(a, "ocr", False))
     r = relever(a.fichiers, motif=motif, ids_connus=ref.ids if ref else None)
     print(f"{VERSION_LABEL} — {r.texte_resume()}")
     for o in r.occurrences[: a.limite]:
@@ -358,8 +359,8 @@ def cmd_affaiblissements(a) -> int:
 def cmd_diff(a) -> int:
     from .controles import comparer
     from .grille import exporter_diff
-    avant, _ = _lire(a.avant, a.spec, a.fournisseur, a.revision_avant, a.sans_profil)
-    apres, _ = _lire(a.apres, a.spec, a.fournisseur, a.revision_apres, a.sans_profil)
+    avant, _ = _lire(a.avant, a.spec, a.fournisseur, a.revision_avant, a.sans_profil, a.ocr)
+    apres, _ = _lire(a.apres, a.spec, a.fournisseur, a.revision_apres, a.sans_profil, a.ocr)
     d = comparer(avant, apres)
     print(f"{VERSION_LABEL} — diff {d.avant} → {d.apres}")
     print(d.texte_resume())
@@ -410,7 +411,7 @@ def cmd_profils(a) -> int:
         from .lecture_ncm import profil_depuis_colonnes, reconnaitre_colonnes
         from .statuts import DictionnaireStatuts
         from .tableaux import lire_tableaux
-        motif, _ = _motif_et_ref(a.spec)
+        motif, _ = _motif_et_ref(a.spec, getattr(a, "ocr", False))
         from .identifiants import MotifIdentifiant
         motif = motif or MotifIdentifiant()
         dico = DictionnaireStatuts.charger()
@@ -450,6 +451,8 @@ def construire_parseur() -> argparse.ArgumentParser:
         q.add_argument("--spec", required=spec_obligatoire, help="référentiel : spécification (xlsx, csv, docx, txt, md, pdf)")
         q.add_argument("--fournisseur", default="", help="nom du fournisseur (profil et sortie)")
         q.add_argument("--sans-profil", action="store_true", help="ignorer le profil fournisseur enregistré")
+        q.add_argument("--ocr", action="store_true",
+                       help="OCR de secours des pages scannées (spécification et NCM PDF ; appels payants au modèle Vision)")
 
     q = sp.add_parser("lire", help="lire une NCM et afficher son diagnostic")
     q.add_argument("ncm")

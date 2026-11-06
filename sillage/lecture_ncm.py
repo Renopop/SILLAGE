@@ -204,14 +204,16 @@ def revision_depuis_nom(nom: str) -> str:
 def lire_ncm(chemin, motif: Optional[MotifIdentifiant] = None, dico: Optional[DictionnaireStatuts] = None,
              profil: Optional[Profil] = None, fournisseur: str = "", revision: str = "",
              ids_referentiel: Optional[Sequence[str]] = None,
-             textes_referentiel: Optional[Dict[str, str]] = None) -> NCM:
+             textes_referentiel: Optional[Dict[str, str]] = None, ocr: bool = False) -> NCM:
     """Lit un fichier de NCM et renvoie ses lignes pivot avec leur diagnostic.
 
     `textes_referentiel` (identifiant → texte) sert à reconnaître la colonne
     qui répète l'exigence. Si le document se déclare pré-filtré (« unless
     listed below, all other items can be assumed compliant »), le diagnostic
     le note et `ncm.prefiltree` est posé : les contrôles traitent alors les
-    exigences absentes comme conformes implicites."""
+    exigences absentes comme conformes implicites. `ocr` : OCR de secours
+    des pages scannées d'une NCM PDF (appels payants) ; un OCR indisponible
+    ou incomplet est signalé dans le diagnostic, pas levé."""
     motif = motif or MotifIdentifiant()
     dico = dico or DictionnaireStatuts.charger()
     chemin = Path(chemin)
@@ -219,8 +221,14 @@ def lire_ncm(chemin, motif: Optional[MotifIdentifiant] = None, dico: Optional[Di
     ncm = NCM(fournisseur=fournisseur, revision=revision or revision_depuis_nom(chemin.name),
               fichier=str(chemin), diagnostic=diag)
 
-    tableaux = lire_tableaux(chemin)
+    try:
+        tableaux = lire_tableaux(chemin, ocr=ocr)
+    except RuntimeError as exc:   # OCR indisponible ou incomplet : on lit ce qui se lit sans lui
+        diag.avertissements.append(str(exc))
+        tableaux = lire_tableaux(chemin)
+        ocr = False
     diag.tableaux_lus = len(tableaux)
+    diag.tableaux_ocr = sum(1 for t in tableaux if t.ocr)
     colonnes_retenues: Optional[Colonnes] = None
     for t in tableaux:
         cols = reconnaitre_colonnes(t, motif, dico, profil, textes_referentiel)
@@ -233,13 +241,16 @@ def lire_ncm(chemin, motif: Optional[MotifIdentifiant] = None, dico: Optional[Di
             diag.colonnes = cols.roles()
         _lire_lignes(t, cols, motif, dico, ncm, diag)
 
-    diag.prefiltree = ncm.prefiltree = _declaree_prefiltree(chemin, tableaux)
+    diag.prefiltree = ncm.prefiltree = _declaree_prefiltree(chemin, tableaux, ocr)
     if diag.tableaux_retenus == 0:
         if chemin.suffix.lower() == ".pdf":
             from .textes import pdf_sans_texte
             if pdf_sans_texte(chemin):
-                diag.avertissements.append("PDF sans couche texte (document scanné) : rien n'est lisible sans OCR ; "
-                                           "demander la NCM sous forme de tableur ou de PDF texte")
+                diag.avertissements.append(
+                    "PDF sans couche texte (document scanné) : " +
+                    ("l'OCR de secours n'y a reconstruit aucun tableau exploitable" if ocr else
+                     "rien n'est lisible sans OCR — activer l'OCR de secours (--ocr, case « OCR de secours ») "
+                     "ou demander la NCM sous forme de tableur ou de PDF texte"))
         diag.avertissements.append("aucun tableau ne contient une colonne d'identifiants d'exigences")
     if colonnes_retenues is not None and colonnes_retenues.statut is None:
         diag.avertissements.append("aucune colonne de statuts reconnue : toutes les lignes sont « ? » "
@@ -256,7 +267,7 @@ def lire_ncm(chemin, motif: Optional[MotifIdentifiant] = None, dico: Optional[Di
     return ncm
 
 
-def _declaree_prefiltree(chemin: Path, tableaux: Sequence[Tableau]) -> bool:
+def _declaree_prefiltree(chemin: Path, tableaux: Sequence[Tableau], ocr: bool = False) -> bool:
     """Vrai si le document annonce que les exigences non listées sont conformes
     (phrase cherchée dans les cellules des tableaux et, pour un PDF ou un
     Word, dans le texte hors tableaux)."""
@@ -264,7 +275,7 @@ def _declaree_prefiltree(chemin: Path, tableaux: Sequence[Tableau]) -> bool:
     if chemin.suffix.lower() in (".pdf", ".docx"):
         try:
             from .textes import paragraphes
-            textes.extend(p.texte for p in paragraphes(chemin))
+            textes.extend(p.texte for p in paragraphes(chemin, ocr=ocr))
         except Exception:   # un document illisible hors tableaux n'empêche pas la lecture
             pass
     return any(_PREFILTREE.search(x) for x in textes)

@@ -44,7 +44,9 @@ class Referentiel:
         return len(self.exigences)
 
 
-def lire_referentiel(chemin, motif: Optional[MotifIdentifiant] = None) -> Referentiel:
+def lire_referentiel(chemin, motif: Optional[MotifIdentifiant] = None, ocr: bool = False) -> Referentiel:
+    """`ocr` : OCR de secours des pages scannées d'une spécification PDF
+    (appels payants au modèle Vision, voir `sillage.ocr`)."""
     p = Path(chemin)
     ext = p.suffix.lower()
     if ext in (".xlsx", ".xlsm", ".csv", ".tsv"):
@@ -54,7 +56,11 @@ def lire_referentiel(chemin, motif: Optional[MotifIdentifiant] = None) -> Refere
     elif ext in (".txt", ".md"):
         exigences = _depuis_paragraphes(p, paragraphes_texte(p), motif or MotifIdentifiant())
     elif ext == ".pdf":
-        exigences = _depuis_paragraphes(p, paragraphes_pdf(p), motif or MotifIdentifiant())
+        try:
+            paras = paragraphes_pdf(p, ocr=ocr)
+        except RuntimeError as exc:   # OCR indisponible ou incomplet
+            raise ValueError(f"{p.name} : {exc}") from exc
+        exigences = _depuis_paragraphes(p, paras, motif or MotifIdentifiant())
     else:
         raise ValueError(f"format de référentiel non pris en charge : {ext or '(sans extension)'}")
     if motif is None:
@@ -69,8 +75,10 @@ def lire_referentiel(chemin, motif: Optional[MotifIdentifiant] = None) -> Refere
     if ext == ".pdf" and not exigences:
         from .textes import pdf_sans_texte
         if pdf_sans_texte(p):
-            raise ValueError(f"{p.name} : PDF sans couche texte (document scanné) — passer par l'OCR "
-                             f"ou demander la spécification sous forme de fichier texte")
+            raise ValueError(f"{p.name} : PDF sans couche texte (document scanné) — " +
+                             ("l'OCR de secours n'y a trouvé aucune exigence" if ocr else
+                              "activer l'OCR de secours (--ocr, case « OCR de secours ») "
+                              "ou demander la spécification sous forme de fichier texte"))
     return ref
 
 

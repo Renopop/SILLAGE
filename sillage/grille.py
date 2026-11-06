@@ -1,4 +1,12 @@
-"""Export de la grille des écarts et du diff en classeur Excel."""
+"""Export de la grille des écarts et du diff en classeur Excel.
+
+Grille : feuilles « Grille » (une ligne par exigence, toutes les colonnes des
+lots 1 à 7, couleurs par statut et par niveau d'appui), « Alertes »,
+« Impact norme » (si des exigences sont tracées), « Couverture norme » (si la
+couverture est donnée) et « Résumé ». Diff : feuilles « Diff » et « Résumé ».
+Les mises en forme repèrent les colonnes par leur position dans `COLONNES` :
+ajouter une colonne se fait en fin de liste (voir l'audit, M-11).
+"""
 
 from __future__ import annotations
 

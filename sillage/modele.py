@@ -54,7 +54,7 @@ GRAVITE = {
 # Chemins de lecture d'une ligne.
 CHEMIN_TABLEAU = "tableau"    # colonnes reconnues par leur contenu
 CHEMIN_PROFIL = "profil"      # colonnes données par le profil du fournisseur
-CHEMIN_EXTRAIT = "extrait"    # statut déduit d'un texte (lot 3), à confirmer
+CHEMIN_EXTRAIT = "extrait"    # réservé : statut déduit d'un texte libre (aucune lecture ne le produit aujourd'hui)
 
 # Champs optionnels reconnus dans une NCM (clé pivot -> mots-clés d'en-tête).
 # L'ordre compte : le plus spécifique d'abord (« Waiver ref » est une dérogation, pas une référence).

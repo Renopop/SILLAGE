@@ -1,7 +1,7 @@
 """Lecture des documents en paragraphes (docx, txt, md, pdf, tableurs).
 
 Sert au référentiel (exigences dans un document) et à la campagne lexicale
-des affaiblissements. Pour la recherche par le sens, c'est RIVAGE qui lit.
+des affaiblissements. Pour la recherche par le sens, c'est le moteur embarqué qui lit.
 """
 
 from __future__ import annotations

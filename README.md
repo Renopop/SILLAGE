@@ -17,7 +17,9 @@ donnent la même grille. Pour vérifier qu'un « conforme » est étayé par la
 spécification du fournisseur, SILLAGE utilise le moteur de **RIVAGE**
 (index, portée, recherche hybride, reranking), **embarqué** dans
 `sillage/moteur/` : SILLAGE est autonome, aucune installation de RIVAGE
-n'est nécessaire sur le poste. Voir `docs/PLAN_SILLAGE.md`.
+n'est nécessaire sur le poste. Voir `docs/PLAN_SILLAGE.md`, et la
+présentation `docs/SILLAGE_comment_ca_marche_principes.pptx` (principes,
+étapes, règles et interface ; générée par `docs/outils/make_deck_sillage.js`).
 
 Auteur, créateur et développeur : Renaud Loison.
 

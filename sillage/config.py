@@ -1,7 +1,11 @@
 """Emplacements des données utilisateur de SILLAGE.
 
 `SILLAGE_HOME` surcharge tout ; sinon `%LOCALAPPDATA%\\sillage` sous Windows,
-`~/.sillage` ailleurs. Aucune donnée fournisseur n'est écrite dans le dépôt.
+`~/.sillage` ailleurs. On y trouve : `statuts.json` (ajouts au dictionnaire),
+`profils/<fournisseur>.json`, `index/<fournisseur>/` (index du moteur
+embarqué), `memoire.sqlite` (campagnes) et `gui.json` (réglages de
+l'interface). Aucune donnée fournisseur n'est écrite dans le dépôt ni sur le
+partage.
 """
 
 from __future__ import annotations
@@ -29,7 +33,7 @@ def dossier_profils() -> Path:
 
 
 def dossier_index(fournisseur: str = "") -> Path:
-    """Index RIVAGE des documents d'un fournisseur, propre à SILLAGE (local)."""
+    """Index (moteur embarqué) des documents d'un fournisseur, propre à SILLAGE, local au poste."""
     from .profils import nom_fichier_profil
     nom = nom_fichier_profil(fournisseur)[:-5] if fournisseur else "defaut"
     return dossier_donnees() / "index" / nom

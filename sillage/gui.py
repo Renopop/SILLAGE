@@ -1,13 +1,20 @@
 """Interface graphique de SILLAGE (Tkinter), autonome.
 
-Un **projet** : la spécification (référentiel), le fournisseur, sa NCM, le
-dossier de ses documents. Des **actions** : lire la NCM (diagnostic
-d'exploitabilité), confirmer le profil des colonnes, enrichir le
-dictionnaire des statuts, indexer les documents du fournisseur (moteur de
-RIVAGE embarqué), vérifier que les « conformes » sont étayés, relever les
-affaiblissements, comparer deux révisions. La **grille** à l'écran : une
-ligne par exigence, filtrable par statut et par alerte, avec un volet de
-détail. **Exports** Excel de la grille et du diff.
+Un **projet** : la spécification (référentiel), le projet, le fournisseur, sa
+NCM et sa révision, le dossier de ses documents, l'index du moteur. Sept
+**étapes** : lire la NCM (diagnostic d'exploitabilité, statuts inconnus
+proposés à l'enrichissement), grille des écarts, indexer les documents du
+fournisseur (moteur de RIVAGE embarqué), vérifier que les « conformes » sont
+étayés, relever les affaiblissements, rédiger les fiches de revue (seule
+étape générative), capitaliser la campagne dans la mémoire des projets. Des
+**outils** : profil des colonnes, dictionnaire des statuts, comparaison avec
+une révision antérieure, mémoire des projets, traçabilité vers la norme
+(proposer, charger, documents de la norme), fiche « ce poste ». La
+**grille** à l'écran : une ligne par exigence, colorée par statut, filtrable
+par statut, par alerte et par texte, avec un volet de détail (exigence, ligne
+de NCM, clôture, origine, appui et passage, valeurs absentes,
+affaiblissements, fiche de revue, historique, alertes). **Exports** : grille
+et diff en Excel, fiches en Word, NCM normalisée, appuis et fiches en JSON.
 
 Même modèle que RIVAGE : les travaux longs tournent dans un fil, les
 résultats reviennent par une file relevée toutes les 100 ms ; un seul

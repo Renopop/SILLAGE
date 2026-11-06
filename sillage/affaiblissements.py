@@ -5,7 +5,7 @@ practicable », « best effort », « sous réserve », « dans la mesure du
 possible », « except », « not covered »… Ces expressions se cherchent mot à
 mot dans les documents du fournisseur (spécification, NCM) ; chaque
 occurrence est rattachée aux identifiants d'exigences cités dans le même
-paragraphe. Déterministe, sans RIVAGE.
+paragraphe. Déterministe, sans le moteur de recherche ni la passerelle.
 """
 
 from __future__ import annotations

@@ -4,6 +4,13 @@ Tout ici est déterministe : jointure entre le référentiel et la NCM, trous,
 orphelins, doublons, incohérences, statuts inconnus, clôture des écarts, diff
 entre deux révisions. Deux campagnes sur les mêmes fichiers donnent la même
 grille.
+
+Les lots suivants s'y reportent par des objets optionnels, sans changer la
+jointure : appuis et affaiblissements (lot 3 : alertes `c_sans_appui`,
+`c_faible`, `valeurs_absentes`, `affaiblissement`), traçabilité vers la norme
+(lot 4 : champ `norme` et alerte `impact_norme`), fiches de revue (lot 5 :
+texte de la fiche sur la ligne), mémoire des projets (lot 7 : historique de
+l'exigence, reporté par `memoire.Memoire.annoter`).
 """
 
 from __future__ import annotations
@@ -60,7 +67,7 @@ class LigneGrille:
     alertes: List[str] = field(default_factory=list)
     dans_referentiel: bool = True
     nb_lignes_ncm: int = 0
-    # lot 3 : appui dans la spécification fournisseur (RIVAGE) et affaiblissements (lexical)
+    # lot 3 : appui dans la spécification fournisseur (moteur embarqué) et affaiblissements (lexical)
     appui_niveau: str = ""
     appui_score: Optional[float] = None
     appui_passage: str = ""

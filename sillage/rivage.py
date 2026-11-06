@@ -1,7 +1,7 @@
 """Pont vers le moteur de RIVAGE, embarqué dans SILLAGE (`sillage/moteur/`).
 
 Tout ce qui lit du texte par le sens (vérification des « conformes »,
-traçabilité vers la norme, fiches de revue) passe par un index RIVAGE, sa
+traçabilité vers la norme, fiches de revue) passe par un index du moteur, sa
 portée par chemins, sa chaîne hybride et son reranking. SILLAGE n'en réécrit
 rien et n'exige aucune installation de RIVAGE : la copie embarquée suffit.
 
@@ -110,7 +110,7 @@ class Passage:
 
 
 class Moteur:
-    """Une session de recherche sur un index RIVAGE : un retriever ouvert pour
+    """Une session de recherche sur un index du moteur : un retriever ouvert pour
     toute une campagne (le cache lecteur de RIVAGE garde FAISS, BM25 et la
     portée en mémoire ; registre et magasin sont empruntés au pool)."""
 

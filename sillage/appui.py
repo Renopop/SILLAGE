@@ -1,9 +1,9 @@
 """Lot 3 — vérification des « conformes » : un statut « C » est une affirmation ;
-SILLAGE cherche, dans la spécification fournisseur indexée par RIVAGE, le
-passage qui l'étaye.
+SILLAGE cherche, dans la spécification fournisseur indexée par le moteur de
+RIVAGE embarqué, le passage qui l'étaye.
 
 Pour chaque exigence retenue (par défaut : statut C ; PC en option), une
-question RIVAGE = le texte de l'exigence, posée dans la portée des documents
+question au moteur = le texte de l'exigence, posée dans la portée des documents
 du fournisseur (préfixes de chemins ou liste de fichiers). Le score de
 reranking du meilleur passage classe l'appui :
 
@@ -204,7 +204,7 @@ def verifier(ref: Referentiel, ncm: NCM, moteur: Moteur, prefixes: Optional[Sequ
              seuil_etaye: float = SEUIL_ETAYE, seuil_faible: float = SEUIL_FAIBLE, n_passages: int = 3,
              retrieve_k: Optional[int] = None, avec_identifiant: bool = False,
              progression: Optional[Callable[[int, int, str], None]] = None) -> Campagne:
-    """Campagne de vérification : une question RIVAGE par exigence dont le statut
+    """Campagne de vérification : une question au moteur par exigence dont le statut
     NCM est dans `statuts`, restreinte à la portée (`prefixes` de chemins et/ou
     `fichiers` indexés). Un embedding, une recherche hybride et un reranking
     par exigence ; jamais de synthèse."""

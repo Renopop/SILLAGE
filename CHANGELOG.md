@@ -2,6 +2,21 @@
 
 Numérotation MAJEUR.MINEUR.CORRECTIF ; version dans `sillage/version.py`.
 
+## 0.7.2 — 2026-11-06 (documentation : commentaires, présentation)
+
+- Revue de tous les commentaires et docstrings du code propre à SILLAGE
+  (hors copie du moteur) : périmètre complet dans `sillage/__init__.py`,
+  rôle de chaque module, lots 3 à 7 décrits dans `controles.py`, règle
+  d'ajout de colonne dans `grille.py`, chemin `extrait` marqué réservé,
+  aides de la ligne de commande reformulées. Aucun changement de
+  comportement.
+- `docs/SILLAGE_comment_ca_marche_principes.pptx` : présentation de 35
+  diapositives (pourquoi SILLAGE, principes, architecture, lecture des NCM,
+  contrôles, diff, moteur embarqué, appuis, affaiblissements, traçabilité,
+  fiches, mémoire, interface avec les captures, autonomie, atouts, gains,
+  audit, pistes, règles en une page), produite par
+  `docs/outils/make_deck_sillage.js` (pptxgenjs).
+
 ## 0.7.1 — 2026-11-05 (audit qualité, corrections)
 
 - `docs/AUDIT_QUALITE_SILLAGE.md` : audit complet (méthode, synthèse,

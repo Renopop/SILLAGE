@@ -4,7 +4,7 @@ Trois temps :
 
 1. **Proposer** (`tracer`) : la norme est indexée par le moteur embarqué
    (`sillage indexer <dossier de la norme> --index <index norme>`). Pour chaque
-   exigence sans paragraphe de norme, une question RIVAGE (le texte de
+   exigence sans paragraphe de norme, une question au moteur (le texte de
    l'exigence) dans l'index de la norme ; les références de paragraphes
    (« CS 25.1309 », « AMC 25.1309 ») sont extraites des meilleurs passages,
    chacune avec le score de reranking du passage où elle apparaît. Le

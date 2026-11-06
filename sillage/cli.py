@@ -5,6 +5,9 @@
     sillage diff   --avant NCM_A --apres NCM_B [--sortie diff.xlsx]
     sillage statuts [--ajouter "valeur=C"]
     sillage profils [--proposer NCM --fournisseur F]
+    sillage indexer DOSSIER [--index INDEX] [--fournisseur F]
+    sillage appui  --spec SPEC --ncm NCM [--index INDEX] [--json a.json]
+    sillage affaiblissements FICHIERS... [--spec SPEC]
     sillage tracer --spec SPEC --index INDEX_NORME [--json t.json] [--xlsx t.xlsx]
     sillage fiches --spec SPEC --ncm NCM [--appuis a.json] [--json f.json] [--docx f.docx]
     sillage memoire campagnes|contestees|acceptes|norme|fournisseurs|chercher TEXTE|exporter --sortie X
@@ -62,7 +65,7 @@ def _index_dir(a) -> str:
 
 
 def _campagne(a, ref, ncm):
-    """Vérification des « C » par RIVAGE (lot 3), si demandée ou si un fichier d'appuis est donné."""
+    """Vérification des « C » par le moteur embarqué (lot 3), si demandée ou si un fichier d'appuis est donné."""
     from .appui import Campagne, verifier
     if getattr(a, "appuis", None):
         return Campagne.charger(a.appuis)
@@ -450,7 +453,7 @@ def construire_parseur() -> argparse.ArgumentParser:
     q.set_defaults(fonction=cmd_lire)
 
     def options_rivage(q):
-        q.add_argument("--index", help="index RIVAGE des documents du fournisseur (défaut : dossier de données SILLAGE, par fournisseur)")
+        q.add_argument("--index", help="index (moteur embarqué) des documents du fournisseur (défaut : dossier de données SILLAGE, par fournisseur)")
         q.add_argument("--dossier", action="append", metavar="PREFIXE", help="portée : préfixe de chemin dans l'index (répétable)")
         q.add_argument("--documents", action="append", metavar="CHEMIN", help="portée : fichier indexé (répétable)")
         q.add_argument("--statuts", default="C", help="statuts NCM à vérifier (défaut : C ; ex. C,PC)")
@@ -463,7 +466,7 @@ def construire_parseur() -> argparse.ArgumentParser:
     commun(q, spec_obligatoire=True)
     q.add_argument("--revision", default="")
     q.add_argument("--sortie", help="classeur de sortie (défaut : <ncm>_grille.xlsx)")
-    q.add_argument("--verifier", action="store_true", help="lot 3 : vérifier les « C » dans la spécification fournisseur (RIVAGE)")
+    q.add_argument("--verifier", action="store_true", help="lot 3 : vérifier les « C » dans la spécification fournisseur (moteur embarqué)")
     q.add_argument("--appuis", metavar="JSON", help="lot 3 : reprendre une campagne d'appuis enregistrée par « appui --json »")
     q.add_argument("--affaiblissements", action="append", metavar="FICHIER", help="lot 3 : documents du fournisseur à passer au crible lexical (répétable)")
     q.add_argument("--tracabilite", metavar="FICHIER", help="lot 4 : traçabilité vers la norme (JSON de « tracer », ou classeur relu)")
@@ -508,7 +511,7 @@ def construire_parseur() -> argparse.ArgumentParser:
 
     q = sp.add_parser("tracer", help="lot 4 : proposer, pour chaque exigence, le paragraphe de norme (index de la norme)")
     q.add_argument("--spec", required=True)
-    q.add_argument("--index", required=True, help="index RIVAGE de la norme (sillage indexer <dossier norme> --index …)")
+    q.add_argument("--index", required=True, help="index de la norme (sillage indexer <dossier norme> --index …)")
     q.add_argument("--dossier", action="append", metavar="PREFIXE", help="portée dans l'index (répétable)")
     q.add_argument("--documents", action="append", metavar="CHEMIN", help="portée : fichier indexé (répétable)")
     q.add_argument("--tout", action="store_true", help="aussi les exigences qui ont déjà un paragraphe dans la spécification")

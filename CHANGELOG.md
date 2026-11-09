@@ -2,6 +2,21 @@
 
 Numérotation MAJEUR.MINEUR.CORRECTIF ; version dans `sillage/version.py`.
 
+## 0.9.3 — 2026-11-09 (préfixe d'identifiant imposé)
+
+Retour terrain : le motif déduit de la spécification peut prendre d'autres
+numérotations en tête de ligne (« TSO-C77b », « MIL-PRF-7808 », « DO-160 »)
+pour des préfixes d'exigences.
+
+- Champ « Préfixe d'identifiant » dans le cadre Projet (mémorisé) et option
+  `--prefixe` en ligne de commande : « HLTR_APU_ », « REQ_B2-3_ », plusieurs
+  préfixes séparés par des virgules. S'il est rempli, lui seul compte, pour
+  la spécification comme pour la NCM ; le séparateur final écrit devient
+  celui de la forme normalisée. Vide : motif déduit comme avant.
+- L'onglet Diagnostic affiche les préfixes retenus et leur origine (imposés
+  ou déduits de la spécification) ; changer le préfixe fait relire la
+  spécification à la lecture suivante.
+
 ## 0.9.2 — 2026-11-09 (NCM Excel : une ligne Excel par ligne de texte)
 
 Retour terrain, même classeur relu de près : l'identifiant est **seul sur sa

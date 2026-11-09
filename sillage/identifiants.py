@@ -235,6 +235,25 @@ class MotifIdentifiant:
         return [f"{pa}{sepa}{n}" for n in range(na, nb + 1)]
 
 
+def motif_depuis_prefixes(texte: str) -> Optional[MotifIdentifiant]:
+    """Motif imposé par l'utilisateur : « HLTR_APU_ », « REQ_B2-3_ », « REQ- »,
+    plusieurs préfixes séparés par des virgules ou des points-virgules. Le
+    séparateur final écrit (« _ » ou « - ») devient celui de la forme
+    normalisée ; crochets et espaces sont ignorés. None si rien d'utile."""
+    prefixes: Dict[str, str] = {}
+    for brut in re.split(r"[,;\n]+", texte or ""):
+        tok = brut.strip().strip("[](){}<>«»\"' ")
+        if not tok:
+            continue
+        sep = "_" if tok.endswith("_") else "-"
+        prefixe = tok.rstrip("-_ .").upper()
+        if len(prefixe) >= 2 and prefixe[0].isalpha():
+            prefixes[prefixe] = sep
+    if not prefixes:
+        return None
+    return MotifIdentifiant(set(prefixes), prefixes)
+
+
 def deduire_motif(identifiants: Iterable[str]) -> MotifIdentifiant:
     """Motif restreint aux préfixes réellement présents dans un référentiel.
 

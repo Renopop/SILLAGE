@@ -390,3 +390,29 @@ def test_ncm_excel_une_ligne_par_ligne_de_texte(tmp_path):
                                                    "Ice accumulation to be assessed.")
     assert par["HLTR_APU_10"][0].id_brut.startswith("[HLTR_APU_10] The APU fuel system shall meet")
     assert ncm.diagnostic.lignes_avec_id == 3 and ncm.diagnostic.tableaux_retenus == 1
+
+
+def test_prefixe_impose(tmp_path):
+    """Dans une spécification, d'autres numérotations commencent des lignes
+    (TSO-C77b, MIL-PRF-7808, DO-160) ; le préfixe imposé par l'utilisateur
+    évite qu'elles passent pour des exigences, et la NCM est lue avec lui."""
+    from sillage.identifiants import motif_depuis_prefixes
+    pages = [["4.3 Boundaries", "[HLTR_APU_2]", "There shall be 1 (one) APU shipset per aircraft.",
+              "TSO-C77b applies to the fuel system.", "MIL-PRF-7808 oils are acceptable.",
+              "[HLTR_APU_3]", "The shipset boundaries are defined in DO-160 section 4.",
+              "DO-160 section 16 applies."]]
+    p = _pdf_texte(tmp_path / "spec.pdf", pages)
+    deduit = lire_referentiel(p)
+    assert deduit.motif.prefixes > {"HLTR_APU"}                 # sans consigne, TSO-C77b, MIL-PRF, DO-160 passent pour des exigences
+    impose = lire_referentiel(p, prefixes="HLTR_APU_")
+    assert impose.ids == ["HLTR_APU_2", "HLTR_APU_3"]
+    assert impose.motif.prefixes == {"HLTR_APU"}
+    assert impose.par_id()["HLTR_APU_2"].texte == ("There shall be 1 (one) APU shipset per aircraft. TSO-C77b applies to the "
+                                                   "fuel system. MIL-PRF-7808 oils are acceptable.")
+    m = motif_depuis_prefixes("[REQ_B2-3_], SRD-")
+    assert m.prefixes == {"REQ_B2-3", "SRD"} and m.extraire("REQ-B2-3-15 et srd_4") == ["REQ_B2-3_15", "SRD-4"]
+    assert motif_depuis_prefixes("  ") is None
+    from conftest import ecrire_xlsx
+    ncm = lire_ncm(ecrire_xlsx(tmp_path / "ncm.xlsx", [["ID", "Status"], ["HLTR_APU_2", "C"], ["TSO-C77b", "C"]]),
+                   impose.motif, DictionnaireStatuts())
+    assert ncm.ids == ["HLTR_APU_2"]

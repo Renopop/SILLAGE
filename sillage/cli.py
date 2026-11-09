@@ -34,20 +34,21 @@ def _ocr(a):
     return bool(getattr(a, "ocr", False))
 
 
-def _motif_et_ref(spec: Optional[str], ocr=False):
+def _motif_et_ref(spec: Optional[str], ocr=False, prefixes: str = ""):
     from .referentiel import lire_referentiel
     if not spec:
-        return None, None
-    ref = lire_referentiel(spec, ocr=ocr)
+        from .identifiants import motif_depuis_prefixes
+        return motif_depuis_prefixes(prefixes), None
+    ref = lire_referentiel(spec, ocr=ocr, prefixes=prefixes)
     return ref.motif, ref
 
 
 def _lire(chemin: str, spec: Optional[str], fournisseur: str, revision: str, sans_profil: bool = False,
-          ocr=False):
+          ocr=False, prefixes: str = ""):
     from .lecture_ncm import lire_ncm
     from .profils import Profil
     from .statuts import DictionnaireStatuts
-    motif, ref = _motif_et_ref(spec, ocr)
+    motif, ref = _motif_et_ref(spec, ocr, prefixes)
     profil = None if (sans_profil or not fournisseur) else Profil.charger(fournisseur)
     ncm = lire_ncm(chemin, motif=motif, dico=DictionnaireStatuts.charger(), profil=profil,
                    fournisseur=fournisseur, revision=revision, ids_referentiel=ref.ids if ref else None,
@@ -69,7 +70,7 @@ def cmd_inspecter(a) -> int:
     motif = MotifIdentifiant()
     if a.spec:
         from .referentiel import lire_referentiel
-        ref = lire_referentiel(a.spec, ocr=_ocr(a))
+        ref = lire_referentiel(a.spec, ocr=_ocr(a), prefixes=getattr(a, "prefixe", "") or "")
         motif = ref.motif
         out(f"Référentiel : {len(ref)} exigences, préfixes {sorted(motif.prefixes)}")
     if p.suffix.lower() != ".pdf":
@@ -128,7 +129,7 @@ def cmd_inspecter(a) -> int:
 
 
 def cmd_lire(a) -> int:
-    ncm, _ = _lire(a.ncm, a.spec, a.fournisseur, a.revision, a.sans_profil, _ocr(a))
+    ncm, _ = _lire(a.ncm, a.spec, a.fournisseur, a.revision, a.sans_profil, _ocr(a), a.prefixe or "")
     print(f"{VERSION_LABEL} — lecture de {Path(a.ncm).name}" + (f" (révision {ncm.revision})" if ncm.revision else ""))
     print(ncm.diagnostic.texte())
     if a.json:
@@ -189,7 +190,7 @@ def _couverture(a, ref):
 def cmd_grille(a) -> int:
     from .controles import controler
     from .grille import exporter_grille
-    ncm, ref = _lire(a.ncm, a.spec, a.fournisseur, a.revision, a.sans_profil, _ocr(a))
+    ncm, ref = _lire(a.ncm, a.spec, a.fournisseur, a.revision, a.sans_profil, _ocr(a), a.prefixe or "")
     if a.prefiltree:
         ncm.prefiltree = True
     elif a.non_prefiltree:
@@ -341,7 +342,7 @@ def cmd_tracer(a) -> int:
     if not disponible():
         print(message_absent(), file=sys.stderr)
         return 1
-    ref = lire_referentiel(a.spec, ocr=_ocr(a))
+    ref = lire_referentiel(a.spec, ocr=_ocr(a), prefixes=getattr(a, "prefixe", "") or "")
     index_dir = a.index
     print(f"{VERSION_LABEL} — traçabilité de {len(ref)} exigences ({Path(a.spec).name}) vers la norme indexée dans {index_dir}")
     def progression(k, n, ident):
@@ -367,7 +368,7 @@ def cmd_tracer(a) -> int:
 def cmd_couverture(a) -> int:
     from .norme import couverture, paragraphes_cites
     from .referentiel import lire_referentiel
-    ref = lire_referentiel(a.spec, ocr=_ocr(a))
+    ref = lire_referentiel(a.spec, ocr=_ocr(a), prefixes=getattr(a, "prefixe", "") or "")
     trac = _tracabilite(a)
     if trac is not None:
         from .norme import appliquer
@@ -424,7 +425,7 @@ def cmd_appui(a) -> int:
 
 def cmd_affaiblissements(a) -> int:
     from .affaiblissements import relever
-    motif, ref = _motif_et_ref(a.spec, _ocr(a))
+    motif, ref = _motif_et_ref(a.spec, _ocr(a), getattr(a, "prefixe", "") or "")
     r = relever(a.fichiers, motif=motif, ids_connus=ref.ids if ref else None)
     print(f"{VERSION_LABEL} — {r.texte_resume()}")
     for o in r.occurrences[: a.limite]:
@@ -438,8 +439,8 @@ def cmd_affaiblissements(a) -> int:
 def cmd_diff(a) -> int:
     from .controles import comparer
     from .grille import exporter_diff
-    avant, _ = _lire(a.avant, a.spec, a.fournisseur, a.revision_avant, a.sans_profil, _ocr(a))
-    apres, _ = _lire(a.apres, a.spec, a.fournisseur, a.revision_apres, a.sans_profil, _ocr(a))
+    avant, _ = _lire(a.avant, a.spec, a.fournisseur, a.revision_avant, a.sans_profil, _ocr(a), a.prefixe or "")
+    apres, _ = _lire(a.apres, a.spec, a.fournisseur, a.revision_apres, a.sans_profil, _ocr(a), a.prefixe or "")
     d = comparer(avant, apres)
     print(f"{VERSION_LABEL} — diff {d.avant} → {d.apres}")
     print(d.texte_resume())
@@ -490,7 +491,7 @@ def cmd_profils(a) -> int:
         from .lecture_ncm import profil_depuis_colonnes, reconnaitre_colonnes
         from .statuts import DictionnaireStatuts
         from .tableaux import lire_tableaux
-        motif, _ = _motif_et_ref(a.spec, _ocr(a))
+        motif, _ = _motif_et_ref(a.spec, _ocr(a), getattr(a, "prefixe", "") or "")
         from .identifiants import MotifIdentifiant
         motif = motif or MotifIdentifiant()
         dico = DictionnaireStatuts.charger()
@@ -534,6 +535,9 @@ def construire_parseur() -> argparse.ArgumentParser:
                        help="OCR de secours (spécification et NCM PDF ; appels payants au modèle Vision) : pages sans "
                             "couche texte, puis toutes les pages si la couche texte ne donne rien")
         q.add_argument("--ocr-forcer", action="store_true", help="OCR de toutes les pages d'emblée, couche texte ignorée")
+        q.add_argument("--prefixe", default="", metavar="PREFIXE",
+                       help="préfixe(s) d'identifiant d'exigence imposés, ex. HLTR_APU_ ou « REQ_B2-3_, SRD- » "
+                            "(défaut : déduits de la spécification)")
 
     q = sp.add_parser("lire", help="lire une NCM et afficher son diagnostic")
     q.add_argument("ncm")

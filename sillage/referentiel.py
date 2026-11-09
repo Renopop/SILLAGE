@@ -17,7 +17,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional
 
-from .identifiants import MotifIdentifiant, deduire_motif, trier
+from .identifiants import MotifIdentifiant, deduire_motif, motif_depuis_prefixes, trier
 from .modele import Exigence
 from .profils import normaliser_en_tete
 from .tableaux import lire_tableaux
@@ -35,6 +35,7 @@ class Referentiel:
     source: str = ""
     exigences: List[Exigence] = field(default_factory=list)
     motif: MotifIdentifiant = field(default_factory=MotifIdentifiant)
+    prefixes_imposes: str = ""      # préfixe(s) saisis par l'utilisateur, tels quels ; vide = motif déduit
 
     @property
     def ids(self) -> List[str]:
@@ -47,11 +48,18 @@ class Referentiel:
         return len(self.exigences)
 
 
-def lire_referentiel(chemin, motif: Optional[MotifIdentifiant] = None, ocr=False) -> Referentiel:
+def lire_referentiel(chemin, motif: Optional[MotifIdentifiant] = None, ocr=False,
+                     prefixes: str = "") -> Referentiel:
     """`ocr` : OCR de secours des pages scannées d'une spécification PDF
     (appels payants au modèle Vision, voir `sillage.ocr`). Vrai : pages sans
     couche texte, puis toutes les pages si la couche texte ne livre aucune
-    exigence (scan OCRisé par le scanner) ; « forcer » : toutes les pages."""
+    exigence (scan OCRisé par le scanner) ; « forcer » : toutes les pages.
+    `prefixes` : préfixe(s) d'identifiant imposés par l'utilisateur
+    (« HLTR_APU_ ») ; sinon le motif se déduit des identifiants en tête de
+    ligne, ce qui peut prendre d'autres numérotations (« TSO-C77b »,
+    « MIL-PRF-… ») pour des exigences."""
+    if motif is None and prefixes:
+        motif = motif_depuis_prefixes(prefixes)
     p = Path(chemin)
     ext = p.suffix.lower()
     if ext in (".xlsx", ".xlsm", ".csv", ".tsv"):
@@ -80,7 +88,7 @@ def lire_referentiel(chemin, motif: Optional[MotifIdentifiant] = None, ocr=False
         for e in exigences:
             e.id = motif.canoniser(e.id)
     exigences = _dedoublonner(exigences)
-    ref = Referentiel(source=str(p), exigences=exigences)
+    ref = Referentiel(source=str(p), exigences=exigences, prefixes_imposes=prefixes if motif_depuis_prefixes(prefixes) else "")
     ref.motif = motif
     if ext == ".pdf" and not exigences:
         from .textes import pdf_sans_texte

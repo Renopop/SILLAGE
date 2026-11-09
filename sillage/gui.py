@@ -120,7 +120,7 @@ class Application(tk.Tk):
 
     def _enregistrer_reglages(self) -> None:
         d = {"spec": self.v_spec.get(), "projet": self.v_projet.get(), "fournisseur": self.v_fournisseur.get(), "ncm": self.v_ncm.get(),
-             "documents": self.v_documents.get(), "index": self.v_index.get(), "norme": self.v_norme.get(),
+             "documents": self.v_documents.get(), "index": self.v_index.get(), "norme": self.v_norme.get(), "prefixe": self.v_prefixe.get(),
              "seuil_etaye": self.v_seuil_etaye.get(), "seuil_faible": self.v_seuil_faible.get(),
              "statuts": self.v_statuts.get(), "ocr": self.v_ocr.get(), "ocr_forcer": self.v_ocr_forcer.get()}
         try:
@@ -163,6 +163,7 @@ class Application(tk.Tk):
         self.v_documents = tk.StringVar(value=r.get("documents", ""))
         self.v_index = tk.StringVar(value=r.get("index", ""))
         self.v_norme = tk.StringVar(value=r.get("norme", ""))
+        self.v_prefixe = tk.StringVar(value=r.get("prefixe", ""))
         self.v_seuil_etaye = tk.StringVar(value=str(r.get("seuil_etaye", "0.5")))
         self.v_seuil_faible = tk.StringVar(value=str(r.get("seuil_faible", "0.25")))
         self.v_statuts = tk.StringVar(value=r.get("statuts", "C"))
@@ -193,8 +194,12 @@ class Application(tk.Tk):
         ligne(2, "Révision :", self.v_revision, None, colonne=3, largeur=28)
         ligne(3, "Norme applicable (documents) :", self.v_norme, self._choisir_norme)
         ligne(3, "Index fournisseur :", self.v_index, self._choisir_index, colonne=3, largeur=28)
+        e = ligne(4, "Préfixe d'identifiant :", self.v_prefixe, None)
+        e.bind("<FocusOut>", lambda _e: self._prefixe_change())
+        ttk.Label(projet, text="ex. HLTR_APU_ ou REQ_B2-3_ (plusieurs : virgule) ; vide = déduit de la spécification",
+                  foreground="#5a6a79").grid(row=4, column=3, columnspan=3, sticky="w")
         cases = ttk.Frame(projet)
-        cases.grid(row=4, column=0, columnspan=6, sticky="w", pady=(4, 0))
+        cases.grid(row=5, column=0, columnspan=6, sticky="w", pady=(4, 0))
         ttk.Checkbutton(cases, text="NCM finale signée", variable=self.v_signee).pack(side="left")
         ttk.Checkbutton(cases, text="NCM pré-filtrée (absentes réputées conformes)", variable=self.v_prefiltree,
                         command=lambda: self.calculer_grille() if self.ncm is not None else None).pack(side="left", padx=(12, 0))
@@ -469,10 +474,10 @@ class Application(tk.Tk):
             return "forcer"
         return self.v_ocr.get()
 
-    def _charger_ref(self, spec: Optional[str] = None, ocr=None):
-        """Le référentiel (relu si la spécification a changé). Hors du fil
-        principal, `spec` et `ocr` doivent être donnés : les variables Tk n'y
-        sont pas lisibles."""
+    def _charger_ref(self, spec: Optional[str] = None, ocr=None, prefixes: Optional[str] = None):
+        """Le référentiel (relu si la spécification ou le préfixe a changé). Hors
+        du fil principal, `spec`, `ocr` et `prefixes` doivent être donnés : les
+        variables Tk n'y sont pas lisibles."""
         from .referentiel import lire_referentiel
         if spec is None:
             spec = self.v_spec.get().strip()
@@ -480,15 +485,23 @@ class Application(tk.Tk):
             ocr = self._regime_ocr()
         if not spec:
             raise ValueError("choisissez d'abord la spécification (référentiel)")
-        if self.ref is None or self.ref.source != spec:
-            self.ref = lire_referentiel(spec, ocr=ocr)
+        if prefixes is None:
+            prefixes = self.v_prefixe.get().strip()
+        if self.ref is None or self.ref.source != spec or self.ref.prefixes_imposes != prefixes:
+            self.ref = lire_referentiel(spec, ocr=ocr, prefixes=prefixes)
         return self.ref
 
-    def _lire_ncm_travail(self, spec: str, ncm_f: str, fournisseur: str, revision: str, ocr=False):
+    def _prefixe_change(self):
+        """Le préfixe a changé : le référentiel sera relu à la prochaine lecture."""
+        if self.ref is not None and self.ref.prefixes_imposes != self.v_prefixe.get().strip():
+            self.ref = None
+            self.ncm = None
+
+    def _lire_ncm_travail(self, spec: str, ncm_f: str, fournisseur: str, revision: str, ocr=False, prefixes: str = ""):
         from .lecture_ncm import lire_ncm
         from .profils import Profil
         from .statuts import DictionnaireStatuts
-        ref = self._charger_ref(spec, ocr)
+        ref = self._charger_ref(spec, ocr, prefixes)
         if not ncm_f:
             raise ValueError("choisissez la NCM à lire")
         profil = Profil.charger(fournisseur) if fournisseur else None
@@ -502,13 +515,17 @@ class Application(tk.Tk):
         spec, ncm_f = self.v_spec.get().strip(), self.v_ncm.get().strip()
         fournisseur, revision = self.v_fournisseur.get().strip(), self.v_revision.get().strip()
         ocr = self._regime_ocr()
+        prefixes = self.v_prefixe.get().strip()
 
         def fin(ncm):
             self.ncm = ncm
             self.campagne = None
             self.releve = None
             self.v_revision.set(ncm.revision)
-            self._ecrire(self.t_diag, f"Référentiel : {len(self.ref)} exigences ({Path(self.ref.source).name})\n"
+            prefs = ", ".join(sorted(self.ref.motif.prefixes)) or "—"
+            self._ecrire(self.t_diag, f"Référentiel : {len(self.ref)} exigences ({Path(self.ref.source).name}) — "
+                                      f"préfixes d'identifiant : {prefs}"
+                                      + (" (imposés)" if self.ref.prefixes_imposes else " (déduits de la spécification)") + "\n"
                                       f"NCM : {Path(ncm.fichier).name}" + (f", révision {ncm.revision}" if ncm.revision else "") +
                                       "\n" + ncm.diagnostic.texte())
             self.onglets.select(0)
@@ -523,7 +540,7 @@ class Application(tk.Tk):
                     return
             self.calculer_grille()
 
-        self._lancer("lecture de la NCM", lambda: self._lire_ncm_travail(spec, ncm_f, fournisseur, revision, ocr),
+        self._lancer("lecture de la NCM", lambda: self._lire_ncm_travail(spec, ncm_f, fournisseur, revision, ocr, prefixes),
                      fin, "Lecture de la NCM…")
 
     def calculer_grille(self):

@@ -48,7 +48,9 @@ récente : `python outils/synchroniser_rivage.py chemin\vers\RIVAGE`.
 NCM, le dossier des **documents du fournisseur** (sa spécification, ses
 rapports), le dossier des **documents de la norme applicable** (CS-25,
 AMC…), le nom du projet, le fournisseur, la révision ; l'index du
-fournisseur est optionnel (défaut : dossier de données). Les **huit
+fournisseur est optionnel (défaut : dossier de données) ; le **préfixe
+d'identifiant** (« HLTR_APU_ ») s'impose quand la spécification contient
+d'autres numérotations en tête de ligne, sinon il est déduit. Les **huit
 étapes** se suivent de gauche à droite : 1 lire la NCM, 2 grille des
 écarts, 3 indexer les documents du fournisseur, 4 vérifier les « C »,
 5 tracer vers la norme (la norme est indexée une fois, dans un index qui lui

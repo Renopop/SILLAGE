@@ -2,6 +2,22 @@
 
 Numérotation MAJEUR.MINEUR.CORRECTIF ; version dans `sillage/version.py`.
 
+## 0.9.4 — 2026-11-09 (interface : erreurs visibles, retour des boutons)
+
+Retour terrain : « les boutons ne font rien ou font des erreurs ». Les
+erreurs des travaux de fond n'étaient écrites que dans la barre d'état et le
+Journal ; celles des boutons eux-mêmes partaient sur la console, invisible
+avec l'exécutable.
+
+- Toute erreur, dans un travail de fond ou dans un bouton, ouvre une boîte
+  de dialogue avec le message et renvoie à l'onglet Journal, où la trace
+  complète est écrite.
+- « 2. Grille des écarts » dit ce qu'il a fait (barre d'état et Journal :
+  exigences, couvertes, trous, orphelins, écarts) et relit la NCM si le
+  référentiel a été invalidé.
+- Préfixe d'identifiant : le référentiel n'est invalidé que si le préfixe
+  exploitable change, avec une ligne de Journal « relancez 1. Lire la NCM ».
+
 ## 0.9.3 — 2026-11-09 (préfixe d'identifiant imposé)
 
 Retour terrain : le motif déduit de la spécification peut prendre d'autres

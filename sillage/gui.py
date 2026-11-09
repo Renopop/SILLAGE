@@ -444,10 +444,21 @@ class Application(tk.Tk):
                 elif genre == "erreur":
                     self._terminer()
                     self.v_statut_bar.set(f"Échec : {msg[2]}")
+                    messagebox.showerror("SILLAGE", f"Échec de « {msg[1]} » :\n{msg[2]}\n\nLe détail est dans l'onglet Journal.")
                     messagebox.showerror("SILLAGE", f"« {msg[1]} » a échoué :\n{msg[2]}")
         except queue.Empty:
             pass
         self.after(100, self._relever)
+
+    def report_callback_exception(self, exc_type, exc, tb):   # Tk : exception dans un bouton ou un rappel
+        import traceback
+        logger.error("erreur dans l'interface :\n%s", "".join(traceback.format_exception(exc_type, exc, tb)))
+        try:
+            if self.en_cours:
+                self._terminer()
+            messagebox.showerror("SILLAGE", f"{exc_type.__name__}: {exc}\n\nLe détail est dans l'onglet Journal.")
+        except Exception:   # pragma: no cover
+            pass
 
     def _terminer(self):
         self.en_cours = False
@@ -487,15 +498,22 @@ class Application(tk.Tk):
             raise ValueError("choisissez d'abord la spécification (référentiel)")
         if prefixes is None:
             prefixes = self.v_prefixe.get().strip()
-        if self.ref is None or self.ref.source != spec or self.ref.prefixes_imposes != prefixes:
+        if self.ref is None or self.ref.source != spec or self.ref.prefixes_imposes != self._prefixe_utile(prefixes):
             self.ref = lire_referentiel(spec, ocr=ocr, prefixes=prefixes)
         return self.ref
 
+    @staticmethod
+    def _prefixe_utile(texte: str) -> str:
+        from .identifiants import motif_depuis_prefixes
+        texte = (texte or "").strip()
+        return texte if motif_depuis_prefixes(texte) else ""
+
     def _prefixe_change(self):
         """Le préfixe a changé : le référentiel sera relu à la prochaine lecture."""
-        if self.ref is not None and self.ref.prefixes_imposes != self.v_prefixe.get().strip():
+        if self.ref is not None and self.ref.prefixes_imposes != self._prefixe_utile(self.v_prefixe.get()):
             self.ref = None
             self.ncm = None
+            self._journal("Préfixe d'identifiant modifié : relancez « 1. Lire la NCM »")
 
     def _lire_ncm_travail(self, spec: str, ncm_f: str, fournisseur: str, revision: str, ocr=False, prefixes: str = ""):
         from .lecture_ncm import lire_ncm
@@ -544,7 +562,7 @@ class Application(tk.Tk):
                      fin, "Lecture de la NCM…")
 
     def calculer_grille(self):
-        if self.ncm is None:
+        if self.ncm is None or self.ref is None:
             self.lire_ncm()
             return
         from .controles import controler
@@ -559,6 +577,10 @@ class Application(tk.Tk):
         self._ecrire(self.t_resume, self.grille.texte_resume())
         self._rafraichir_grille()
         self.onglets.select(1)
+        r = self.grille.resume()
+        self._journal(f"Grille calculée : {r['exigences']} exigences, couvertes {r['couverts']}, trous {r['trou']}, "
+                      f"orphelins {r['orphelin']}, écarts {r['ecarts']}")
+        self.v_statut_bar.set(f"Grille : {r['exigences']} exigences — couvertes {r['couverts']}, écarts {r['ecarts']}, trous {r['trou']}.")
 
     def indexer(self):
         from .rivage import disponible, indexer, message_absent

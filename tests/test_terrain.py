@@ -291,3 +291,56 @@ def test_ncm_pdf_quadrillage_faux_statuts_centres(tmp_path):
     assert par["REQ_B2-3_16"][0].justification.endswith("measurement.")
     assert ncm.diagnostic.prefiltree
     assert any("ligne par ligne" in a for a in ncm.diagnostic.avertissements)
+
+
+def test_ncm_excel_cellules_hautes_fusionnees(tmp_path):
+    """NCM Excel réelle : l'identifiant ouvre une cellule haute qui contient aussi
+    le texte de l'exigence et ses métadonnées ; chaque exigence est fusionnée
+    sur plusieurs lignes ; la réponse du fournisseur n'est pas fusionnée et
+    continue sur les lignes suivantes ; des feuilles annexes existent."""
+    from openpyxl import Workbook
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "NCM B2 VC"
+    ws.append(["", "Applicable documents are of 2 natures:\n- specific documents of the system", "", ""])
+    ws.append(["", "Requirement", "Compliance", "Supplier rationale"])
+    exigences = [
+        ("HLTR_APU_10", "The APU fuel system shall meet the fuel icing requirements of TSO-C77b and potential A/C level CRMP.",
+         "Partially\nCompliant", ["The APU fuel system is compliant with the fuel icing requirements of TSO-C77b.", "Ice accumulation at A/C level to be assessed."]),
+        ("HLTR_APU_11", "No fuel shall be drained outside of the APU under normal operation circumstances.", "Compliant", ["Ecology tank incorporated."]),
+        ("HLTR_APU_12", "The APU shall operate satisfactorily when using fuels in accordance with the following specifications.", "Compliant", [""]),
+    ]
+    rang = 3
+    for ident, texte, statut, reponses in exigences:
+        cellule = f"[{ident}]\n\n{texte}\nPriority: MANDATORY\nCategory: Derived\nOrigin: Functional\nType: Product\nRev: 21"
+        haut = 4
+        ws.cell(rang, 2, cellule)
+        ws.cell(rang, 3, statut)
+        for i, rep in enumerate(reponses):
+            ws.cell(rang + i, 4, rep)
+        ws.merge_cells(start_row=rang, start_column=2, end_row=rang + haut - 1, end_column=2)
+        ws.merge_cells(start_row=rang, start_column=3, end_row=rang + haut - 1, end_column=3)
+        rang += haut
+    w2 = wb.create_sheet("Deleted lines")
+    w2.append(["", "Requirement", "Compliance", "Supplier rationale"])
+    w2.append(["", "[HLTR_APU_7]\n\nDeleted requirement.", "Compliant", "n/a"])
+    wb.create_sheet("VC vs VB").append(["[HLTR_APU_10]", "changed"])
+    wb.create_sheet("Feuil1")
+    p = tmp_path / "NCM_B2_VC.xlsx"
+    wb.save(str(p))
+
+    from sillage.identifiants import deduire_motif
+    motif = deduire_motif(["[HLTR_APU_2]"])
+    ncm = lire_ncm(p, motif, DictionnaireStatuts(), ids_referentiel=[f"HLTR_APU_{n}" for n in range(2, 60)],
+                   textes_referentiel={"HLTR_APU_10": exigences[0][1], "HLTR_APU_11": exigences[1][1], "HLTR_APU_12": exigences[2][1]})
+    assert ncm.ids == ["HLTR_APU_10", "HLTR_APU_11", "HLTR_APU_12"]
+    par = ncm.par_id()
+    assert par["HLTR_APU_10"][0].statut is Statut.PARTIEL
+    assert par["HLTR_APU_11"][0].statut is Statut.CONFORME
+    assert len(par["HLTR_APU_10"]) == 1                      # les lignes fusionnées ne font pas de doublon
+    assert par["HLTR_APU_10"][0].justification == ("The APU fuel system is compliant with the fuel icing requirements of TSO-C77b. "
+                                                   "Ice accumulation at A/C level to be assessed.")
+    assert ncm.diagnostic.colonnes["id"] == "Requirement" and ncm.diagnostic.colonnes["statut"] == "Compliance"
+    assert ncm.diagnostic.lignes_total == 3
+    assert any("Deleted lines" in a for a in ncm.diagnostic.avertissements)
+    assert not ncm.diagnostic.statuts_inconnus

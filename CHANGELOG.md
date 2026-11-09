@@ -2,6 +2,24 @@
 
 Numérotation MAJEUR.MINEUR.CORRECTIF ; version dans `sillage/version.py`.
 
+## 0.9.1 — 2026-11-09 (NCM Excel : identifiant en tête d'une cellule haute, fusions)
+
+Retour terrain : NCM Excel où chaque exigence est une cellule haute —
+« [HLTR_APU_10] » suivi du texte de l'exigence et de ses métadonnées
+(Priority, Category, Origin, Type, Rev) dans la même cellule, fusionnée sur
+plusieurs lignes — : 258 trous, aucune colonne d'identifiants reconnue,
+parce qu'une cellule de plus de 80 caractères n'était jamais comptée.
+
+- Une cellule longue qui **commence** par un identifiant compte comme clé
+  (reconnaissance de la colonne, lecture des lignes, lignes de suite).
+- Cellules fusionnées sur plusieurs lignes : les lignes qui répètent la
+  même cellule d'identifiant sans statut contradictoire sont une seule
+  ligne logique ; les colonnes non fusionnées (réponse du fournisseur qui
+  continue) la complètent. Plus de faux doublons.
+- Feuilles annexes d'un classeur (« Deleted lines », « VC vs VB »,
+  « Feuil1 », archives, brouillons) écartées d'après leur nom, avec
+  avertissement si elles contenaient des identifiants.
+
 ## 0.9.0 — 2026-11-09 (interface : la norme a sa place)
 
 Retour terrain : « où je rentre la ou les normes applicables ? où je rentre

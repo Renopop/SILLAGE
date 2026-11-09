@@ -73,6 +73,22 @@ def _cellule(ligne: Sequence[str], i: Optional[int]) -> str:
     return ligne[i]
 
 
+def _ids_cle(cellule: str, motif: MotifIdentifiant) -> List[str]:
+    """Identifiants portés par une cellule prise comme clé : tous ceux d'une
+    cellule courte (plages dépliées) ; pour une cellule longue — l'identifiant
+    suivi du texte de l'exigence et de ses métadonnées dans la même cellule —
+    seulement celui qui la commence."""
+    if len(cellule) <= LONGUEUR_ID_MAX:
+        return motif.extraire(cellule)
+    ident = motif.commence_par_id(cellule)
+    return [ident] if ident else []
+
+
+# feuilles d'un classeur qui ne sont pas la NCM : lignes supprimées, comparaisons, brouillons
+_FEUILLES_ANNEXES = re.compile(r"deleted|supprim|\bvs\b|compar|diff|^feuil\d*$|^sheet\d*$|archiv|\bold\b|histor|brouillon|draft",
+                               re.IGNORECASE)
+
+
 def reconnaitre_colonnes(tableau: Tableau, motif: MotifIdentifiant, dico: DictionnaireStatuts,
                          profil: Optional[Profil] = None,
                          textes_ref: Optional[Dict[str, str]] = None) -> Optional[Colonnes]:
@@ -89,7 +105,7 @@ def reconnaitre_colonnes(tableau: Tableau, motif: MotifIdentifiant, dico: Dictio
     # colonne des identifiants
     scores_id = []
     for c in range(nb):
-        n = sum(1 for l in lignes if len(_cellule(l, c)) <= LONGUEUR_ID_MAX and motif.trouver(_cellule(l, c)))
+        n = sum(1 for l in lignes if _ids_cle(_cellule(l, c), motif))
         scores_id.append(n)
     col_id = max(range(nb), key=lambda c: scores_id[c])
     if scores_id[col_id] == 0:
@@ -160,7 +176,7 @@ def reconnaitre_colonnes(tableau: Tableau, motif: MotifIdentifiant, dico: Dictio
                 continue
             comparables = concordants = 0
             for l in donnees:
-                ids = motif.extraire(_cellule(l, col_id)) if len(_cellule(l, col_id)) <= LONGUEUR_ID_MAX else []
+                ids = _ids_cle(_cellule(l, col_id), motif)
                 attendu = _debut(textes_ref.get(ids[0], "")) if ids else ""
                 if not attendu or len(attendu) < 12:
                     continue
@@ -238,6 +254,12 @@ def lire_ncm(chemin, motif: Optional[MotifIdentifiant] = None, dico: Optional[Di
     def lire(tableaux):
         retenues = None
         for t in tableaux:
+            nom_feuille = re.search(r"feuille « (.*) »", t.emplacement)
+            if nom_feuille and _FEUILLES_ANNEXES.search(nom_feuille.group(1)) and len(tableaux) > 1:
+                if reconnaitre_colonnes(t, motif, dico, profil, textes_referentiel) is not None:
+                    diag.avertissements.append(f"feuille « {nom_feuille.group(1)} » ignorée (lignes supprimées, comparaison "
+                                               f"ou brouillon d'après son nom) : elle contenait pourtant des identifiants")
+                continue
             cols = reconnaitre_colonnes(t, motif, dico, profil, textes_referentiel)
             if cols is None:
                 continue
@@ -339,7 +361,20 @@ def _declaree_prefiltree(chemin: Path, tableaux: Sequence[Tableau], ocr: bool = 
 
 
 def _lignes_avec_id(tableaux: Sequence[Tableau], motif: MotifIdentifiant) -> int:
-    return sum(1 for t in tableaux for l in t.lignes[1:] if l and len(l[0]) <= LONGUEUR_ID_MAX and motif.trouver(l[0]))
+    return sum(1 for t in tableaux for l in t.lignes[1:] if l and _ids_cle(l[0], motif))
+
+
+def _repetition_fusion(l: Sequence[str], prec: Sequence[str], cols: Colonnes) -> bool:
+    """Ligne issue d'une zone de cellules fusionnées : même cellule d'identifiant
+    que la ligne précédente et pas de statut contradictoire ; les autres
+    cellules (colonne non fusionnée qui continue) complètent la ligne logique."""
+    if _cellule(l, cols.id) != _cellule(prec, cols.id):
+        return False
+    if cols.statut is not None:
+        a, b = _cellule(l, cols.statut), _cellule(prec, cols.statut)
+        if a and b and a != b:
+            return False          # même identifiant, statuts différents : vraie incohérence, pas une fusion
+    return True
 
 
 def _effondre(t: Tableau, motif: MotifIdentifiant) -> bool:
@@ -384,7 +419,17 @@ def _regrouper(t: Tableau, cols: Colonnes, motif: MotifIdentifiant) -> List[tupl
         l = list(t.lignes[k]) + [""] * (nb - len(t.lignes[k]))
         num = t.numeros[k] if k < len(t.numeros) else k + 1
         cid = _cellule(l, cols.id)
-        a_id = len(cid) <= LONGUEUR_ID_MAX and bool(motif.trouver(cid))
+        a_id = bool(_ids_cle(cid, motif))
+        if a_id and groupes and groupes[-1][2] and _repetition_fusion(l, groupes[-1][0], cols):
+            # cellules fusionnées sur plusieurs lignes du tableur : l'identifiant est recopié sur
+            # chaque ligne de la zone ; les cellules non fusionnées complètent la ligne logique
+            prec = groupes[-1][0]
+            for c in range(nb):
+                if l[c] and not prec[c]:
+                    prec[c] = l[c]
+                elif l[c] and l[c] != prec[c] and not prec[c].endswith(l[c]):
+                    prec[c] = (prec[c] + " " + l[c]).strip()
+            continue
         if not a_id and groupes and groupes[-1][2] and _continuation(l, cols):
             prec = groupes[-1][0]
             for c in range(nb):
@@ -400,7 +445,7 @@ def _lire_lignes(t: Tableau, cols: Colonnes, motif: MotifIdentifiant, dico: Dict
     for l, numero in _regrouper(t, cols, motif):
         diag.lignes_total += 1
         cellule_id = _cellule(l, cols.id)
-        ids = motif.extraire(cellule_id) if len(cellule_id) <= LONGUEUR_ID_MAX else []
+        ids = _ids_cle(cellule_id, motif)
         if not ids:
             continue
         diag.lignes_avec_id += 1

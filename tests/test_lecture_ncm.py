@@ -54,7 +54,8 @@ def test_plages_et_statuts_inconnus(tmp_path):
     assert par["REQ-11"][0].statut is Statut.CONFORME and par["REQ-11"][0].id_brut == "REQ-10 à REQ-12"
     assert par["REQ-13"][0].statut is Statut.INCONNU
     assert ncm.diagnostic.statuts_inconnus == {"Vert": 1, "Rouge": 1}   # une occurrence par cellule, pas par ligne pivot
-    assert ncm.diagnostic.lignes_total == 4 and ncm.diagnostic.lignes_avec_id == 3 and ncm.diagnostic.lignes_pivot == 6
+    # la note de bas de tableau, sous le dernier identifiant, est lue comme sa suite (texte sous l'identifiant)
+    assert ncm.diagnostic.lignes_total == 3 and ncm.diagnostic.lignes_avec_id == 3 and ncm.diagnostic.lignes_pivot == 6
     # le commentaire sert de justification faute de colonne plus longue
     assert par["REQ-10"][0].justification == "groupe"
 

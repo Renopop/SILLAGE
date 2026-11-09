@@ -129,9 +129,10 @@ def reconnaitre_colonnes(tableau: Tableau, motif: MotifIdentifiant, dico: Dictio
     donnees = [l for k, l in enumerate(lignes) if ligne_en_tete is None or k > ligne_en_tete]
     if not donnees:
         return None
-    # lignes logiques : une ligne vide jusqu'à la colonne des identifiants incluse est une
-    # ligne de suite (cellule haute d'un PDF lu ligne par ligne), pas une ligne sans identifiant
-    logiques = [l for l in donnees if any(_cellule(l, c) for c in range(col_id + 1))]
+    # lignes logiques : une ligne qui a l'allure d'une ligne de suite (cellule haute d'un PDF lu
+    # ligne par ligne, texte de l'exigence sous son identifiant dans un classeur) n'est pas une
+    # ligne sans identifiant
+    logiques = [l for l in donnees if _ids_cle(_cellule(l, col_id), motif) or not _allure_de_suite(l, col_id)]
     if not logiques or scores_id[col_id] < SEUIL_ID * len(logiques):
         return None
 
@@ -404,16 +405,24 @@ def _effondre(t: Tableau, motif: MotifIdentifiant) -> bool:
     return rangees > 0 and effondrees * 2 >= rangees
 
 
-def _continuation(l: Sequence[str], cols: Colonnes) -> bool:
-    """Ligne de tableau qui prolonge la précédente : rien jusqu'à la colonne
-    des identifiants incluse, au moins une cellule remplie, et aucune cellule
-    qui soit un titre de section."""
+def _allure_de_suite(l: Sequence[str], col_id: int) -> bool:
+    """Ligne qui a l'allure d'une ligne de suite : rien à gauche de la colonne
+    des identifiants, au moins une cellule remplie, aucun titre de section. La
+    cellule d'identifiant peut porter du texte sans identifiant : dans les
+    classeurs où chaque ligne de texte est une ligne Excel, le texte de
+    l'exigence et ses métadonnées (« Priority: MANDATORY », « Rev: 21 »)
+    suivent l'identifiant dans la même colonne."""
     from .textes import est_titre
-    if any(_cellule(l, c) for c in range(cols.id + 1)):   # cellule d'identifiant remplie sans identifiant : note, pas suite
+    if any(_cellule(l, c) for c in range(col_id)):
         return False
     if not any(l):
         return False
     return not any(est_titre(c) for c in l if c)
+
+
+def _continuation(l: Sequence[str], cols: Colonnes) -> bool:
+    """Ligne de tableau qui prolonge la précédente (voir `_allure_de_suite`)."""
+    return _allure_de_suite(l, cols.id)
 
 
 def _regrouper(t: Tableau, cols: Colonnes, motif: MotifIdentifiant) -> List[tuple]:

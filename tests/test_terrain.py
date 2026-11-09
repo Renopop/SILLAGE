@@ -344,3 +344,49 @@ def test_ncm_excel_cellules_hautes_fusionnees(tmp_path):
     assert ncm.diagnostic.lignes_total == 3
     assert any("Deleted lines" in a for a in ncm.diagnostic.avertissements)
     assert not ncm.diagnostic.statuts_inconnus
+
+
+def test_ncm_excel_une_ligne_par_ligne_de_texte(tmp_path):
+    """NCM Excel réelle (seconde forme) : l'identifiant est seul sur sa ligne,
+    le texte de l'exigence puis ses métadonnées occupent chacun une ligne
+    Excel de la même colonne ; le statut est fusionné sur le bloc ou posé sur
+    une ligne du milieu ; la réponse du fournisseur s'étale sur les premières
+    lignes ; un long préambule précède ; des titres de section s'intercalent."""
+    from openpyxl import Workbook
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "NCM B2 VC"
+    for i in range(13):
+        ws.append(["", f"Applicable documents are of 2 natures (ligne {i + 1})", "", ""])
+    ws.append(["", "5.4 Fuel system", "", ""])
+    blocs = [
+        ("HLTR_APU_10", "The APU fuel system shall meet the fuel icing requirements of TSO-C77b and potential A/C level CRMP.",
+         "Partially\nCompliant", 2, ["The APU fuel system is compliant with the fuel icing requirements of TSO-C77b.", "", "Ice accumulation to be assessed."]),
+        ("HLTR_APU_11", "No fuel shall be drained outside of the APU under normal operation circumstances.", "Compliant", 0, ["Ecology tank incorporated."]),
+        ("HLTR_APU_12", "The APU shall operate satisfactorily when using fuels in accordance with the following specifications.", "Compliant", 0, []),
+    ]
+    for ident, texte, statut, rang_statut, reponses in blocs:
+        lignes_b = [f"[{ident}]", texte, "Priority: MANDATORY", "Category: Derived", "Origin: Functional", "Type: Product", "Rev: 21", "Rationale:"]
+        debut = ws.max_row + 1
+        for i, b in enumerate(lignes_b):
+            ws.append(["", b, statut if i == rang_statut else "", reponses[i] if i < len(reponses) else ""])
+        if ident == "HLTR_APU_11":      # statut fusionné sur tout le bloc
+            ws.merge_cells(start_row=debut, start_column=3, end_row=debut + len(lignes_b) - 1, end_column=3)
+    ws.append(["", "5.5 Oil system", "", ""])
+    p = tmp_path / "NCM_B2_VC_lignes.xlsx"
+    wb.save(str(p))
+
+    from sillage.identifiants import deduire_motif
+    motif = deduire_motif(["[HLTR_APU_2]"])
+    textes = {b[0]: b[1] for b in blocs}
+    ncm = lire_ncm(p, motif, DictionnaireStatuts(), ids_referentiel=[f"HLTR_APU_{n}" for n in range(2, 60)], textes_referentiel=textes)
+    assert ncm.ids == ["HLTR_APU_10", "HLTR_APU_11", "HLTR_APU_12"]
+    par = ncm.par_id()
+    assert par["HLTR_APU_10"][0].statut is Statut.PARTIEL          # statut posé sur la 3e ligne du bloc
+    assert par["HLTR_APU_11"][0].statut is Statut.CONFORME         # statut fusionné sur le bloc
+    assert par["HLTR_APU_12"][0].statut is Statut.CONFORME
+    assert all(len(par[i]) == 1 for i in par)
+    assert par["HLTR_APU_10"][0].justification == ("The APU fuel system is compliant with the fuel icing requirements of TSO-C77b. "
+                                                   "Ice accumulation to be assessed.")
+    assert par["HLTR_APU_10"][0].id_brut.startswith("[HLTR_APU_10] The APU fuel system shall meet")
+    assert ncm.diagnostic.lignes_avec_id == 3 and ncm.diagnostic.tableaux_retenus == 1

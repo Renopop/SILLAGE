@@ -2,6 +2,26 @@
 
 Numérotation MAJEUR.MINEUR.CORRECTIF ; version dans `sillage/version.py`.
 
+## 0.9.2 — 2026-11-09 (NCM Excel : une ligne Excel par ligne de texte)
+
+Retour terrain, même classeur relu de près : l'identifiant est **seul sur sa
+ligne**, et le texte de l'exigence puis ses métadonnées (« Priority:
+MANDATORY », « Category », « Origin », « Type », « Rev: 21 »,
+« Rationale: ») occupent chacun une ligne Excel de la même colonne. Ces
+lignes étaient refusées comme lignes de suite (cellule d'identifiant
+remplie sans identifiant) et comptées dans le seuil : 258 identifiants pour
+quelque 2 000 lignes, tableau rejeté.
+
+- Une ligne dont la cellule d'identifiant porte du texte sans identifiant,
+  rien à sa gauche et aucun titre de section, est une ligne de suite : son
+  texte rejoint la ligne logique de l'identifiant qui précède (le statut
+  posé sur une ligne du milieu du bloc, la réponse étalée sur plusieurs
+  lignes et le statut fusionné sur le bloc sont tous recollés).
+- Le seuil de reconnaissance des colonnes ne compte plus ces lignes de
+  suite comme des lignes sans identifiant.
+- Test reproduisant ce classeur : préambule de treize lignes, titres de
+  section, blocs de huit lignes par exigence.
+
 ## 0.9.1 — 2026-11-09 (NCM Excel : identifiant en tête d'une cellule haute, fusions)
 
 Retour terrain : NCM Excel où chaque exigence est une cellule haute —

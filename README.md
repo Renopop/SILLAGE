@@ -43,6 +43,9 @@ récente : `python outils/synchroniser_rivage.py chemin\vers\RIVAGE`.
 
 ## Interface graphique
 
+Le **guide d'utilisation** pas à pas, avec les captures d'écran :
+`docs/SILLAGE_guide_utilisation.docx` (généré par `docs/outils/make_guide_sillage.js`).
+
 `launch.bat` (ou `python sillage_app.py`) ouvre l'interface. Le cadre
 **Projet** reçoit tout ce qui entre : la spécification (référentiel), la
 NCM, le dossier des **documents du fournisseur** (sa spécification, ses

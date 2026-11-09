@@ -4,6 +4,14 @@ Numérotation MAJEUR.MINEUR.CORRECTIF ; version dans `sillage/version.py`.
 
 ## 0.9.4 — 2026-11-09 (interface : erreurs visibles, retour des boutons)
 
+- **Guide d'utilisation** `docs/SILLAGE_guide_utilisation.docx` (24 pages) :
+  à quoi sert SILLAGE, ce qu'il faut avant de commencer, l'écran champ par
+  champ, les huit étapes dans l'ordre avec les captures, la lecture de la
+  grille (statuts, alertes et ce qu'on en fait), la comparaison de
+  révisions, les exports, « quand ça ne marche pas », où sont les données et
+  ce qui part vers la passerelle, glossaire. Généré par
+  `docs/outils/make_guide_sillage.js` (docx-js) depuis `docs/captures`.
+
 Retour terrain : « les boutons ne font rien ou font des erreurs ». Les
 erreurs des travaux de fond n'étaient écrites que dans la barre d'état et le
 Journal ; celles des boutons eux-mêmes partaient sur la console, invisible

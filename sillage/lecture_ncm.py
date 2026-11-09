@@ -111,12 +111,20 @@ def reconnaitre_colonnes(tableau: Tableau, motif: MotifIdentifiant, dico: Dictio
     if scores_id[col_id] == 0:
         return None
 
-    # ligne d'en-tête : première ligne dont la cellule d'identifiant n'en contient pas
+    # ligne d'en-tête : parmi les lignes qui précèdent la première ligne à identifiant (au plus
+    # cinq : préambule, titres…), la dernière qui a au moins deux cellules remplies — l'en-tête
+    # est juste au-dessus des données, un préambule au-dessus de l'en-tête
     ligne_en_tete = None
-    for k, l in enumerate(lignes[:3]):
-        if not motif.trouver(_cellule(l, col_id)):
-            ligne_en_tete = k
+    candidates = []
+    for k, l in enumerate(lignes[:5]):
+        if _ids_cle(_cellule(l, col_id), motif):
             break
+        candidates.append(k)
+    if candidates:
+        from .textes import est_titre
+        pleines = [k for k in candidates
+                   if sum(1 for c in lignes[k] if c) >= 2 and not any(est_titre(c) for c in lignes[k] if c)]
+        ligne_en_tete = (pleines or candidates)[-1]
     en_tetes = [_cellule(lignes[ligne_en_tete], c) for c in range(nb)] if ligne_en_tete is not None else [""] * nb
     donnees = [l for k, l in enumerate(lignes) if ligne_en_tete is None or k > ligne_en_tete]
     if not donnees:
@@ -296,7 +304,7 @@ def lire_ncm(chemin, motif: Optional[MotifIdentifiant] = None, dico: Optional[Di
         # ne donne rien : relecture ligne par ligne, colonnes déduites des alignements
         relire(lire_tableaux(chemin, ocr=ocr, alignements=True),
                "quadrillage du PDF inexploitable : pages lues ligne par ligne, colonnes déduites des alignements du texte (à relire)")
-    if est_pdf and ocr and (colonnes_retenues is None or ocr == "forcer"):
+    if est_pdf and ocr and (colonnes_retenues is None or ocr == "forcer" or any(t.ocr for t in tableaux)):
         # la couche texte (OCR du scanner) ou les tableaux à barres du modèle ne suffisent pas :
         # toutes les pages relues par le modèle Vision, lecture par identifiant (en mode « forcer »,
         # la lecture par identifiant remplace les tableaux à barres si elle trouve plus d'identifiants)
@@ -365,9 +373,11 @@ def _lignes_avec_id(tableaux: Sequence[Tableau], motif: MotifIdentifiant) -> int
 
 
 def _repetition_fusion(l: Sequence[str], prec: Sequence[str], cols: Colonnes) -> bool:
-    """Ligne issue d'une zone de cellules fusionnées : même cellule d'identifiant
-    que la ligne précédente et pas de statut contradictoire ; les autres
-    cellules (colonne non fusionnée qui continue) complètent la ligne logique."""
+    """Ligne issue d'une zone de cellules fusionnées (la cellule d'identifiant
+    est une copie, voir `Tableau.copies`) : même cellule d'identifiant que la
+    ligne précédente et pas de statut contradictoire ; les autres cellules
+    (colonne non fusionnée qui continue) complètent la ligne logique. Deux
+    lignes saisies à l'identique restent deux lignes : un doublon à signaler."""
     if _cellule(l, cols.id) != _cellule(prec, cols.id):
         return False
     if cols.statut is not None:
@@ -420,7 +430,7 @@ def _regrouper(t: Tableau, cols: Colonnes, motif: MotifIdentifiant) -> List[tupl
         num = t.numeros[k] if k < len(t.numeros) else k + 1
         cid = _cellule(l, cols.id)
         a_id = bool(_ids_cle(cid, motif))
-        if a_id and groupes and groupes[-1][2] and _repetition_fusion(l, groupes[-1][0], cols):
+        if a_id and groupes and groupes[-1][2] and (num, cols.id) in t.copies and _repetition_fusion(l, groupes[-1][0], cols):
             # cellules fusionnées sur plusieurs lignes du tableur : l'identifiant est recopié sur
             # chaque ligne de la zone ; les cellules non fusionnées complètent la ligne logique
             prec = groupes[-1][0]

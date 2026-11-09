@@ -33,6 +33,7 @@ class Tableau:
     lignes: List[List[str]] = field(default_factory=list)
     numeros: List[int] = field(default_factory=list)   # numéro de ligne d'origine pour chaque ligne
     ocr: bool = False                                   # tableau reconstruit depuis le texte OCR d'une page scannée
+    copies: set = field(default_factory=set)            # (numéro de ligne, colonne) des cellules recopiées depuis une fusion
 
     @property
     def nb_colonnes(self) -> int:
@@ -64,12 +65,14 @@ def lire_xlsx(chemin: Path) -> List[Tableau]:
         if maxr == 0 or maxc == 0:
             continue
         grille = [[_texte(ws.cell(r, c).value) for c in range(1, maxc + 1)] for r in range(1, maxr + 1)]
+        t = Tableau(str(chemin), f"feuille « {ws.title} »")
         for rng in ws.merged_cells.ranges:
             val = grille[rng.min_row - 1][rng.min_col - 1]
             for r in range(rng.min_row, rng.max_row + 1):
                 for c in range(rng.min_col, rng.max_col + 1):
                     grille[r - 1][c - 1] = val
-        t = Tableau(str(chemin), f"feuille « {ws.title} »")
+                    if r > rng.min_row:
+                        t.copies.add((r, c - 1))      # ligne de suite d'une fusion verticale
         for i, row in enumerate(grille, start=1):
             t.ajouter(row, i)
         if t.lignes:

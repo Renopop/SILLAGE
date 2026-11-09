@@ -2,6 +2,28 @@
 
 Numérotation MAJEUR.MINEUR.CORRECTIF ; version dans `sillage/version.py`.
 
+## 0.9.0 — 2026-11-09 (interface : la norme a sa place)
+
+Retour terrain : « où je rentre la ou les normes applicables ? où je rentre
+les documents fournisseurs ? » — le fournisseur avait sa ligne, la norme
+passait par un menu et un détournement de l'étape d'indexation.
+
+- Cadre Projet : ligne « Norme applicable (documents) » (dossier de la
+  CS-25 et de ses AMC) à côté de « Documents du fournisseur » ; l'index du
+  fournisseur passe à droite (« Index fournisseur », optionnel) ; les cases
+  à cocher occupent une rangée à elles.
+- Étape « 5. Tracer vers la norme » dans la rangée des étapes (les
+  suivantes sont renumérotées : 6 affaiblissements, 7 fiches, 8
+  capitaliser). La norme est indexée automatiquement si son index manque,
+  dans un index qui lui est propre (dossier de données, `index/norme_<dossier>`),
+  sans toucher aux réglages du fournisseur ; « Outils → Réindexer la
+  norme… » force la réindexation. Le dialogue confirme norme, index, seuil et
+  reprise des exigences déjà tracées.
+- Feuille « Couverture norme » de la grille calculée depuis le dossier de la
+  norme ; l'entrée de menu « Documents de la norme (couverture)… » disparaît.
+- Le dossier de la norme est mémorisé dans les réglages. README,
+  présentation et captures mis à jour.
+
 ## 0.8.5 — 2026-11-06 (OCR : lecture par identifiant, identifiants tolérants)
 
 Retour terrain : 17 % des exigences traitées après l'OCR. Les tableaux à

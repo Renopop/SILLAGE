@@ -113,8 +113,11 @@ SCENARIO = textwrap.dedent('''
     app.v_alerte_filtre.set("impact norme (écart sur exigence tracée)"); app._rafraichir_grille()
     assert len(app.tree.get_children()) == 1
     app.v_alerte_filtre.set("toutes"); app._rafraichir_grille()
-    gui.DialogueTracer = lambda parent, idx="": type("D", (), {"resultat": None, "destroy": lambda self: None})()
+    # étape 5 : la norme a sa ligne dans le cadre Projet ; le dialogue est annulé ici (pas de passerelle)
+    app.v_norme.set(tmp)
+    gui.DialogueTracer = lambda parent, *a, **k: type("D", (), {"resultat": None, "destroy": lambda self: None})()
     app.tracer_norme()
+    assert app._index_norme(tmp).endswith(os.path.basename(tmp).lower().replace(" ", "_")) or "norme" in app._index_norme(tmp)
     # lot 5 : fiches de revue avec un faux client de synthèse, export Word
     import sillage.fiches as fiches_mod
     from types import SimpleNamespace

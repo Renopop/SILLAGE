@@ -120,7 +120,7 @@ class Application(tk.Tk):
 
     def _enregistrer_reglages(self) -> None:
         d = {"spec": self.v_spec.get(), "projet": self.v_projet.get(), "fournisseur": self.v_fournisseur.get(), "ncm": self.v_ncm.get(),
-             "documents": self.v_documents.get(), "index": self.v_index.get(),
+             "documents": self.v_documents.get(), "index": self.v_index.get(), "norme": self.v_norme.get(),
              "seuil_etaye": self.v_seuil_etaye.get(), "seuil_faible": self.v_seuil_faible.get(),
              "statuts": self.v_statuts.get(), "ocr": self.v_ocr.get(), "ocr_forcer": self.v_ocr_forcer.get()}
         try:
@@ -162,6 +162,7 @@ class Application(tk.Tk):
         self.v_revision = tk.StringVar(value="")
         self.v_documents = tk.StringVar(value=r.get("documents", ""))
         self.v_index = tk.StringVar(value=r.get("index", ""))
+        self.v_norme = tk.StringVar(value=r.get("norme", ""))
         self.v_seuil_etaye = tk.StringVar(value=str(r.get("seuil_etaye", "0.5")))
         self.v_seuil_faible = tk.StringVar(value=str(r.get("seuil_faible", "0.25")))
         self.v_statuts = tk.StringVar(value=r.get("statuts", "C"))
@@ -190,9 +191,10 @@ class Application(tk.Tk):
         ligne(1, "Fournisseur :", self.v_fournisseur, None, colonne=3, largeur=28)
         ligne(2, "Documents du fournisseur :", self.v_documents, self._choisir_documents)
         ligne(2, "Révision :", self.v_revision, None, colonne=3, largeur=28)
-        ligne(3, "Index (moteur) :", self.v_index, self._choisir_index)
+        ligne(3, "Norme applicable (documents) :", self.v_norme, self._choisir_norme)
+        ligne(3, "Index fournisseur :", self.v_index, self._choisir_index, colonne=3, largeur=28)
         cases = ttk.Frame(projet)
-        cases.grid(row=3, column=3, columnspan=2, sticky="w")
+        cases.grid(row=4, column=0, columnspan=6, sticky="w", pady=(4, 0))
         ttk.Checkbutton(cases, text="NCM finale signée", variable=self.v_signee).pack(side="left")
         ttk.Checkbutton(cases, text="NCM pré-filtrée (absentes réputées conformes)", variable=self.v_prefiltree,
                         command=lambda: self.calculer_grille() if self.ncm is not None else None).pack(side="left", padx=(12, 0))
@@ -208,9 +210,10 @@ class Application(tk.Tk):
             ("grille", "2. Grille des écarts", self.calculer_grille),
             ("indexer", "3. Indexer les documents", self.indexer),
             ("verifier", "4. Vérifier les « C »", self.verifier),
-            ("affaiblissements", "5. Affaiblissements", self.affaiblissements),
-            ("fiches", "6. Fiches de revue", self.rediger_fiches),
-            ("capitaliser", "7. Capitaliser", self.capitaliser),
+            ("tracer", "5. Tracer vers la norme", self.tracer_norme),
+            ("affaiblissements", "6. Affaiblissements", self.affaiblissements),
+            ("fiches", "7. Fiches de revue", self.rediger_fiches),
+            ("capitaliser", "8. Capitaliser", self.capitaliser),
             ("exporter", "Exporter la grille…", self.exporter_grille),
         ]:
             b = ttk.Button(actions, text=libelle, command=cmd)
@@ -338,8 +341,8 @@ class Application(tk.Tk):
         outils.add_separator()
         outils.add_separator()
         outils.add_command(label="Tracer les exigences vers la norme…", command=self.tracer_norme)
+        outils.add_command(label="Réindexer la norme…", command=lambda: self.tracer_norme(reindexer=True))
         outils.add_command(label="Charger une traçabilité (JSON ou classeur relu)…", command=self.charger_tracabilite)
-        outils.add_command(label="Documents de la norme (couverture)…", command=self.choisir_norme_documents)
         outils.add_separator()
         outils.add_command(label="Ce poste (moteur, processeur, mémoire)…", command=self.fiche_poste)
         m.add_cascade(label="Outils", menu=outils)
@@ -377,6 +380,22 @@ class Application(tk.Tk):
 
     def _index_dir(self) -> str:
         return self.v_index.get().strip() or str(dossier_index(self.v_fournisseur.get().strip()))
+
+    def _choisir_norme(self):
+        p = filedialog.askdirectory(title="Dossier des documents de la norme applicable (CS-25, AMC…)")
+        if p:
+            self.v_norme.set(p)
+
+    def _index_norme(self, dossier: str) -> str:
+        """Index propre à la norme, dans le dossier de données : jamais mêlé à celui du fournisseur."""
+        return str(dossier_index("norme " + Path(dossier).name))
+
+    def _documents_norme(self) -> List[str]:
+        """Fichiers de la norme (pour la feuille de couverture) : ceux du dossier « Norme applicable »."""
+        d = self.v_norme.get().strip()
+        if not d or not os.path.isdir(d):
+            return list(self.norme_documents)
+        return sorted(str(f) for f in Path(d).rglob("*") if f.suffix.lower() in (".pdf", ".docx", ".txt", ".md"))
 
     # --- fil de travail -----------------------------------------------------------------
     def _lancer(self, nom: str, travail: Callable[[], Any], fin: Callable[[Any], None], message: str) -> None:
@@ -649,9 +668,10 @@ class Application(tk.Tk):
             return
         from .grille import exporter_grille
         couv = None
-        if self.norme_documents or any(e.norme for e in self.ref.exigences):
+        docs_norme = self._documents_norme()
+        if docs_norme or any(e.norme for e in self.ref.exigences):
             from .norme import couverture, paragraphes_cites
-            couv = couverture(self.ref, paragraphes_cites(self.norme_documents) if self.norme_documents else None)
+            couv = couverture(self.ref, paragraphes_cites(docs_norme) if docs_norme else None)
         exporter_grille(self.grille, p, couverture=couv)
         self._journal(f"Grille écrite : {p}")
         messagebox.showinfo("SILLAGE", f"Grille écrite :\n{p}")
@@ -798,30 +818,41 @@ class Application(tk.Tk):
             self.calculer_grille()
 
     # --- lot 4 : norme ----------------------------------------------------------------------
-    def tracer_norme(self):
-        from .rivage import Moteur, disponible, message_absent
+    def tracer_norme(self, reindexer: bool = False):
+        """Étape 5 : les paragraphes de la norme proposés pour chaque exigence.
+        La norme est celle de la ligne « Norme applicable (documents) » ; son
+        index, propre à elle, est construit dans le dossier de données s'il
+        manque (ou si `reindexer`), puis la traçabilité est lancée."""
+        from .rivage import Moteur, disponible, indexer, message_absent
         if not disponible():
             messagebox.showerror("SILLAGE", message_absent())
+            return
+        norme = self.v_norme.get().strip()
+        if not norme or not os.path.isdir(norme):
+            messagebox.showwarning("SILLAGE", "Indiquez le dossier des documents de la norme applicable (CS-25, AMC…) "
+                                   "sur la ligne « Norme applicable » du cadre Projet.")
             return
         try:
             ref = self._charger_ref()
         except ValueError as exc:
             messagebox.showwarning("SILLAGE", str(exc))
             return
-        dlg = DialogueTracer(self, self.reglages.get("index_norme", ""))
+        index_dir = self._index_norme(norme)
+        a_indexer = reindexer or not os.path.isdir(index_dir)
+        dlg = DialogueTracer(self, norme, index_dir, a_indexer)
         self.wait_window(dlg)
         if dlg.resultat is None:
             return
-        index_dir, seuil, tout = dlg.resultat
-        if not os.path.isdir(index_dir):
-            messagebox.showwarning("SILLAGE", f"Index de la norme introuvable : {index_dir}\n"
-                                   "Indexez d'abord les documents de la norme (étape 3 avec ce dossier comme index).")
-            return
-        self.reglages["index_norme"] = index_dir
+        seuil, tout, a_indexer = dlg.resultat
         self._enregistrer_reglages()
 
         def travail():
             from .norme import tracer
+            if a_indexer:
+                def prog_idx(ratio, message):
+                    self.q.put(("progression", f"Indexation de la norme {ratio:.0%} — {message}"))
+                indexer(norme, index_dir, progress_cb=prog_idx)
+
             def prog(k, n, ident):
                 self.q.put(("progression", f"Traçabilité {k}/{n} — {ident}"))
             with Moteur(index_dir) as moteur:
@@ -842,7 +873,8 @@ class Application(tk.Tk):
             if self.ncm is not None:
                 self.calculer_grille()
 
-        self._lancer("traçabilité vers la norme", travail, fin, "Recherche des paragraphes de norme pour chaque exigence…")
+        self._lancer("traçabilité vers la norme", travail, fin,
+                     ("Indexation de la norme puis recherche" if a_indexer else "Recherche") + " des paragraphes de norme pour chaque exigence…")
 
     def charger_tracabilite(self):
         p = filedialog.askopenfilename(title="Traçabilité (JSON de « tracer » ou classeur relu)",
@@ -858,13 +890,6 @@ class Application(tk.Tk):
         self._journal(f"Traçabilité chargée : {p} — " + self.tracabilite.texte_resume())
         if self.ncm is not None:
             self.calculer_grille()
-
-    def choisir_norme_documents(self):
-        fichiers = filedialog.askopenfilenames(title="Documents de la norme (pour la feuille de couverture)",
-                                               filetypes=[("Documents", "*.pdf *.docx *.txt *.md *.xlsx *.csv"), ("Tous", "*.*")])
-        if fichiers:
-            self.norme_documents = list(fichiers)
-            self._journal(f"Documents de la norme : {len(fichiers)} fichier(s) ; la couverture sera jointe à l'export de la grille.")
 
     def charger_appuis_json(self):
         p = filedialog.askopenfilename(title="Campagne d'appuis", filetypes=[("JSON", "*.json")])
@@ -1137,39 +1162,39 @@ class DialogueProfil(tk.Toplevel):
 
 
 class DialogueTracer(tk.Toplevel):
-    """Index de la norme, seuil de proposition, exigences déjà tracées à reprendre ou non."""
+    """Confirmation de l'étape 5 : norme, index (construit si besoin), seuil
+    de proposition, exigences déjà tracées à reprendre ou non."""
 
-    def __init__(self, parent, index_defaut: str = ""):
+    def __init__(self, parent, dossier_norme: str = "", index_norme: str = "", a_indexer: bool = False):
         super().__init__(parent)
-        self.title("Tracer les exigences vers la norme")
+        self.title("5. Tracer les exigences vers la norme")
         self.transient(parent)
         self.resultat = None
         cadre = ttk.Frame(self, padding=10)
         cadre.pack(fill="both", expand=True)
-        ttk.Label(cadre, text="La norme (CS-25, AMC…) doit d'abord être indexée : étape 3 « Indexer les documents » avec le "
-                              "dossier de la norme et un index dédié. Pour chaque exigence, les paragraphes cités par ses "
-                              "meilleurs passages sont proposés ; vous relisez et validez dans le classeur produit.",
-                  wraplength=520).grid(row=0, column=0, columnspan=3, sticky="w", pady=(0, 10))
-        ttk.Label(cadre, text="Index de la norme :").grid(row=1, column=0, sticky="w")
-        self.v_index = tk.StringVar(value=index_defaut)
-        ttk.Entry(cadre, textvariable=self.v_index, width=48).grid(row=1, column=1, sticky="ew", padx=6)
-        ttk.Button(cadre, text="…", width=3, command=self._choisir).grid(row=1, column=2)
-        ttk.Label(cadre, text="Seuil de proposition :").grid(row=2, column=0, sticky="w", pady=(6, 0))
+        ttk.Label(cadre, text="Pour chaque exigence, les paragraphes de la norme cités par ses meilleurs passages sont "
+                              "proposés avec leur score ; vous relisez et validez dans le classeur produit. La norme est "
+                              "indexée une fois, dans un index qui lui est propre.",
+                  wraplength=540).grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 10))
+        ttk.Label(cadre, text="Norme (documents) :").grid(row=1, column=0, sticky="w")
+        ttk.Label(cadre, text=dossier_norme or "—", wraplength=420).grid(row=1, column=1, sticky="w", padx=6)
+        ttk.Label(cadre, text="Index de la norme :").grid(row=2, column=0, sticky="w")
+        ttk.Label(cadre, text=index_norme or "—", wraplength=420).grid(row=2, column=1, sticky="w", padx=6)
+        self.v_indexer = tk.BooleanVar(value=a_indexer)
+        ttk.Checkbutton(cadre, text="Indexer (ou réindexer) la norme avant de tracer" +
+                        (" — index absent : obligatoire" if a_indexer else ""),
+                        variable=self.v_indexer, state="disabled" if a_indexer else "normal").grid(row=3, column=0, columnspan=2, sticky="w", pady=(6, 0))
+        ttk.Label(cadre, text="Seuil de proposition :").grid(row=4, column=0, sticky="w", pady=(6, 0))
         self.v_seuil = tk.StringVar(value="0.3")
-        ttk.Entry(cadre, textvariable=self.v_seuil, width=6).grid(row=2, column=1, sticky="w", padx=6, pady=(6, 0))
+        ttk.Entry(cadre, textvariable=self.v_seuil, width=6).grid(row=4, column=1, sticky="w", padx=6, pady=(6, 0))
         self.v_tout = tk.BooleanVar(value=False)
         ttk.Checkbutton(cadre, text="Reprendre aussi les exigences qui ont déjà un paragraphe dans la spécification",
-                        variable=self.v_tout).grid(row=3, column=0, columnspan=3, sticky="w", pady=(6, 0))
+                        variable=self.v_tout).grid(row=5, column=0, columnspan=2, sticky="w", pady=(6, 0))
         boutons = ttk.Frame(cadre)
-        boutons.grid(row=4, column=0, columnspan=3, sticky="e", pady=(10, 0))
+        boutons.grid(row=6, column=0, columnspan=2, sticky="e", pady=(10, 0))
         ttk.Button(boutons, text="Tracer", command=self.valider).pack(side="left", padx=4)
         ttk.Button(boutons, text="Annuler", command=self.destroy).pack(side="left")
         self.grab_set()
-
-    def _choisir(self):
-        p = filedialog.askdirectory(title="Index de la norme", parent=self)
-        if p:
-            self.v_index.set(p)
 
     def valider(self):
         try:
@@ -1177,11 +1202,9 @@ class DialogueTracer(tk.Toplevel):
         except ValueError:
             messagebox.showwarning("SILLAGE", "Seuil invalide.", parent=self)
             return
-        if not self.v_index.get().strip():
-            messagebox.showwarning("SILLAGE", "Indiquez l'index de la norme.", parent=self)
-            return
-        self.resultat = (self.v_index.get().strip(), seuil, self.v_tout.get())
+        self.resultat = (seuil, self.v_tout.get(), self.v_indexer.get())
         self.destroy()
+
 
 
 class FenetreDiff(tk.Toplevel):

@@ -131,7 +131,7 @@ const som = [["1", "Pourquoi SILLAGE, le problème et les principes", "complétu
   ["3", "Contrôler et comparer", "trous, orphelins, doublons, incohérences, clôture, grille, diff entre révisions"],
   ["4", "Le moteur embarqué au service de la conformité", "appuis des « C », valeurs chiffrées, affaiblissements, traçabilité vers la norme"],
   ["5", "Fiches de revue et mémoire des projets", "la seule étape générative ; capitaliser entre projets"],
-  ["6", "L'interface et l'autonomie", "les sept étapes à l'écran, lanceur, exécutable, postes anciens"],
+  ["6", "L'interface et l'autonomie", "les huit étapes à l'écran, lanceur, exécutable, postes anciens"],
   ["7", "Atouts, gains, audit et perspectives", "et les règles en une page"]];
 som.forEach((r, i) => {
   const y = 1.35 + i * 0.8;
@@ -401,14 +401,14 @@ image(s, "72_memoire_acceptes.png", 8.4, 4.2, 4.3, 2.6);
 pres.addSection({ title: "Interface et autonomie" });
 s = pres.addSlide({ masterName: "SECTION", sectionTitle: "Interface et autonomie" });
 s.addText("5. L'interface et l'autonomie", { placeholder: "title" });
-s.addText("Sept étapes à l'écran, un exécutable, rien à installer d'autre", { placeholder: "body" });
+s.addText("Huit étapes à l'écran, un exécutable, rien à installer d'autre", { placeholder: "body" });
 
 // Interface
-s = slide("L'interface : un projet, sept étapes, une grille", "Interface et autonomie");
+s = slide("L'interface : un projet, huit étapes, une grille", "Interface et autonomie");
 image(s, "62_grille_complete_detail_nc.png", 0.6, 1.4, 8.4);
-const etapesI = ["1. Lire la NCM — diagnostic, statuts inconnus proposés", "2. Grille des écarts", "3. Indexer les documents du fournisseur", "4. Vérifier les « C »", "5. Affaiblissements", "6. Fiches de revue", "7. Capitaliser"];
-etapesI.forEach((t, i) => { box(s, 9.3, 1.4 + i * 0.62, 3.4, 0.52, t, i === 5 ? C.accent5 : C.accent1, C.background1, 11); });
-para(s, "Outils : profil des colonnes, dictionnaire des statuts, comparaison de révisions, mémoire des projets, traçabilité vers la norme, fiche « ce poste ». Les travaux longs tournent dans un fil, les boutons sont verrouillés pendant.", 9.3, 5.8, 3.4, 1.2, 11, "5A6A79");
+const etapesI = ["1. Lire la NCM — diagnostic, statuts inconnus proposés", "2. Grille des écarts", "3. Indexer les documents du fournisseur", "4. Vérifier les « C »", "5. Tracer vers la norme (index propre à la norme)", "6. Affaiblissements", "7. Fiches de revue", "8. Capitaliser"];
+etapesI.forEach((t, i) => { box(s, 9.3, 1.4 + i * 0.56, 3.4, 0.48, t, i === 6 ? C.accent5 : C.accent1, C.background1, 11); });
+para(s, "Le cadre Projet reçoit la spécification, la NCM, les documents du fournisseur et ceux de la norme applicable. Outils : profil des colonnes, dictionnaire des statuts, comparaison de révisions, mémoire des projets, fiche « ce poste ».", 9.3, 5.95, 3.4, 1.1, 10, "5A6A79");
 
 // Dialogues
 s = slide("Les dialogues : apprendre une fois, réutiliser toujours", "Interface et autonomie");

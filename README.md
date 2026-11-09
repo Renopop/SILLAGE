@@ -43,12 +43,21 @@ récente : `python outils/synchroniser_rivage.py chemin\vers\RIVAGE`.
 
 ## Interface graphique
 
-`launch.bat` (ou `python sillage_app.py`) ouvre l'interface : un projet
-(spécification, fournisseur, NCM, dossier des documents du fournisseur),
-cinq étapes (lire la NCM, grille des écarts, indexer les documents,
-vérifier les « C », affaiblissements), la comparaison avec une révision
-antérieure, la grille à l'écran colorée par statut avec filtres et volet de
-détail, les onglets diagnostic / résumé / journal, et les exports Excel.
+`launch.bat` (ou `python sillage_app.py`) ouvre l'interface. Le cadre
+**Projet** reçoit tout ce qui entre : la spécification (référentiel), la
+NCM, le dossier des **documents du fournisseur** (sa spécification, ses
+rapports), le dossier des **documents de la norme applicable** (CS-25,
+AMC…), le nom du projet, le fournisseur, la révision ; l'index du
+fournisseur est optionnel (défaut : dossier de données). Les **huit
+étapes** se suivent de gauche à droite : 1 lire la NCM, 2 grille des
+écarts, 3 indexer les documents du fournisseur, 4 vérifier les « C »,
+5 tracer vers la norme (la norme est indexée une fois, dans un index qui lui
+est propre, sans toucher aux réglages du fournisseur ; la feuille de
+couverture de la grille se calcule depuis ce même dossier), 6
+affaiblissements, 7 fiches de revue, 8 capitaliser. Puis la comparaison
+avec une révision antérieure, la grille à l'écran colorée par statut avec
+filtres et volet de détail, les onglets diagnostic / résumé / journal, et
+les exports Excel.
 Les valeurs de statut inconnues du dictionnaire sont proposées à
 l'enrichissement dès la lecture ; le profil des colonnes d'un fournisseur se
 confirme une fois et se mémorise.

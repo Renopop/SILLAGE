@@ -56,7 +56,11 @@ def _texte(v) -> str:
 # --- xlsx ---------------------------------------------------------------------
 def lire_xlsx(chemin: Path) -> List[Tableau]:
     import openpyxl
-    wb = openpyxl.load_workbook(str(chemin), data_only=True, read_only=False)
+    from .barre import texte_cellule_xlsx
+    try:
+        wb = openpyxl.load_workbook(str(chemin), data_only=True, read_only=False, rich_text=True)
+    except TypeError:   # pragma: no cover - openpyxl sans rich_text
+        wb = openpyxl.load_workbook(str(chemin), data_only=True, read_only=False)
     out = []
     for ws in wb.worksheets:
         if ws.sheet_state != "visible":
@@ -64,7 +68,7 @@ def lire_xlsx(chemin: Path) -> List[Tableau]:
         maxr, maxc = ws.max_row or 0, ws.max_column or 0
         if maxr == 0 or maxc == 0:
             continue
-        grille = [[_texte(ws.cell(r, c).value) for c in range(1, maxc + 1)] for r in range(1, maxr + 1)]
+        grille = [[_texte(texte_cellule_xlsx(ws.cell(r, c))) for c in range(1, maxc + 1)] for r in range(1, maxr + 1)]
         t = Tableau(str(chemin), f"feuille « {ws.title} »")
         for rng in ws.merged_cells.ranges:
             val = grille[rng.min_row - 1][rng.min_col - 1]
@@ -84,6 +88,7 @@ def lire_xlsx(chemin: Path) -> List[Tableau]:
 # --- docx ---------------------------------------------------------------------
 def lire_docx(chemin: Path) -> List[Tableau]:
     import docx
+    from .barre import texte_cellule_docx
     doc = docx.Document(str(chemin))
     out = []
     for k, table in enumerate(doc.tables, start=1):
@@ -95,7 +100,7 @@ def lire_docx(chemin: Path) -> List[Tableau]:
                 if prev is not None and cell._tc is prev:
                     continue
                 prev = cell._tc
-                cellules.append(_texte(cell.text))
+                cellules.append(_texte(texte_cellule_docx(cell)))
             t.ajouter(cellules, i)
         if t.lignes:
             out.append(t)
@@ -183,11 +188,13 @@ def lire_pdf(chemin: Path, ocr=False, alignements: bool = False) -> List[Tableau
     bruts: List[Tableau] = []
     scannees: List[int] = []
     forcer = ocr == "forcer"
+    from .barre import page_sans_barre
     with pdfplumber.open(str(chemin)) as pdf:
         for p, page in enumerate(pdf.pages, start=1):
             if forcer:
                 scannees.append(p)
                 continue
+            page = page_sans_barre(page)          # le texte barré est supprimé : ignoré
             tables = []
             if not alignements:
                 try:

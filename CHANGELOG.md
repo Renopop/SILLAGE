@@ -2,6 +2,26 @@
 
 Numérotation MAJEUR.MINEUR.CORRECTIF ; version dans `sillage/version.py`.
 
+## 0.9.5 — 2026-11-19 (le texte barré est ignoré)
+
+Retour terrain : dans les NCM et les spécifications, un passage barré est
+une rédaction supprimée (ancienne formulation de l'exigence, réponse
+remplacée) et doit être ignoré.
+
+- `sillage/barre.py` : texte sans ses parties barrées pour chaque format.
+  Excel : cellule à police barrée (vide) ou portions barrées d'un texte
+  enrichi (classeur ouvert avec `rich_text=True`). Word : runs barrés
+  (simple ou double) dans les paragraphes et les tables, liens compris,
+  suppressions suivies exclues. PDF : caractères traversés à mi-hauteur par
+  un trait horizontal (ligne ou rectangle fin) ; un soulignement, sous la
+  ligne de base, est conservé.
+- Appliqué partout : lecture des tableaux (NCM) et des paragraphes
+  (spécification, affaiblissements), donc aussi à la reconnaissance des
+  identifiants et des statuts : un statut barré laisse la ligne sans statut.
+- OCR : la consigne au modèle Vision lui demande de ne pas recopier le texte
+  rayé (version de consigne 3 : les pages déjà en cache seront relues).
+- Tests sur les trois formats.
+
 ## 0.9.4 — 2026-11-09 (interface : erreurs visibles, retour des boutons)
 
 - **Guide d'utilisation** `docs/SILLAGE_guide_utilisation.docx` (24 pages) :

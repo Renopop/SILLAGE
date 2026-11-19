@@ -172,6 +172,9 @@ caractères de l'OCR dans les identifiants (O/0, B/8, I/1…). Le diagnostic
 indique combien de tableaux viennent de l'OCR, à relire. La commande `inspecter fichier.pdf --spec
 spec.pdf --sortie rapport.txt` montre ce que SILLAGE voit page par page.
 
+Le **texte barré** est du texte supprimé : ignoré partout (Excel, Word,
+PDF ; cellule, portion de texte, caractères traversés par un trait).
+
 Les tableaux sont lus **ligne par ligne** : dans un PDF sans quadrillage,
 les colonnes sont déduites des alignements du texte et chaque ligne de texte
 devient une ligne de tableau ; une cellule haute (le statut « Partially

@@ -135,6 +135,7 @@ c.push(table(["Quoi", "Sous quelle forme", "Obligatoire pour"], [
 ], [2600, 4600, 1872]));
 c.push(P(""));
 c.push(Attention("Si la spécification ou la NCM est un PDF **scanné** (une image, sans texte sélectionnable), rien n'est lisible directement. Cochez « OCR de secours » : les pages passent par le modèle Vision de la passerelle. Chaque page est un appel payant, mais les pages déjà lues sont gardées en cache. Un PDF produit par un scanner avec une couche texte de mauvaise qualité est traité de la même façon, automatiquement, si l'OCR de secours est coché."));
+c.push(Note("Le **texte barré** (rayé d'un trait) est du texte supprimé : SILLAGE l'ignore partout, dans la spécification comme dans la NCM — texte de l'exigence, justification, statut, identifiant. Un statut barré laisse la ligne sans statut ; une justification barrée n'est pas lue. Cela vaut pour Excel, Word et PDF, et la consigne d'OCR le demande aussi au modèle Vision."));
 c.push(P("Pour lancer SILLAGE : double-cliquez sur **launch.bat** (ou sur SILLAGE.exe si vous avez l'exécutable). L'installation, si elle n'est pas faite : **install.bat**, une fois."));
 c.push(saut());
 

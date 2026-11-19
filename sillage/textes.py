@@ -34,10 +34,11 @@ def est_titre(ligne: str) -> bool:
 
 def paragraphes_docx(p: Path) -> List[Para]:
     import docx
+    from .barre import texte_cellule_docx, texte_paragraphe_docx
     doc = docx.Document(str(p))
     out = []
     for i, para in enumerate(doc.paragraphs, start=1):
-        txt = para.text.strip()
+        txt = texte_paragraphe_docx(para).strip()
         if not txt:
             continue
         style = (para.style.name if para.style is not None else "") or ""
@@ -50,7 +51,7 @@ def paragraphes_docx(p: Path) -> List[Para]:
                 if prev is not None and cell._tc is prev:
                     continue
                 prev = cell._tc
-                cellules.append(cell.text.strip())
+                cellules.append(texte_cellule_docx(cell).strip())
             txt = " — ".join(c for c in cellules if c)
             if txt:
                 out.append(Para(txt, f"table {k}, ligne {r}"))
@@ -77,8 +78,9 @@ def paragraphes_pdf(p: Path, ocr=False) -> List[Para]:
     import pdfplumber
     from collections import Counter
     out = []
+    from .barre import page_sans_barre
     with pdfplumber.open(str(p)) as pdf:
-        pages = [(page.extract_text() or "") for page in pdf.pages]
+        pages = [(page_sans_barre(page).extract_text() or "") for page in pdf.pages]   # texte barré ignoré
     if ocr:
         if ocr == "forcer":
             scannees = list(range(1, len(pages) + 1))

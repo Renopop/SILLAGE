@@ -36,7 +36,7 @@ from .tableaux import Tableau
 logger = logging.getLogger("sillage.ocr")
 
 FORCER = "forcer"
-VERSION_CONSIGNE = "2"
+VERSION_CONSIGNE = "3"
 OUVRIERS = 3            # pages lues en parallèle (la passerelle borne de toute façon)
 
 CONSIGNE_SYSTEME = """Tu es un expert en OCR (reconnaissance optique de caractères) de documents techniques aéronautiques.
@@ -52,6 +52,7 @@ Règles :
    Non compliant, N/A, C, PC, NC…) sont recopiés exactement, caractère par caractère.
 4. Le texte hors tableaux (titres, paragraphes, notes) est recopié tel quel, un paragraphe par ligne.
 5. Indique [illisible] pour ce qui ne peut pas être lu.
+6. Le texte BARRÉ (rayé d'un trait) est du texte supprimé : ne le recopie pas, ni dans les tableaux ni ailleurs.
 
 Retourne UNIQUEMENT le texte extrait, sans commentaire."""
 
